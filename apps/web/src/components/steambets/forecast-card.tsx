@@ -18,6 +18,12 @@ const compactNumber = new Intl.NumberFormat('en-US', {
   maximumFractionDigits: 1,
   notation: 'compact',
 });
+const STEAM_CAPSULE_ASPECT_RATIO = 231 / 87;
+
+function useCurrentSteamArtwork(image: HTMLImageElement, appId: number) {
+  const fallbackUrl = `/api/steam-artwork/${appId}`;
+  if (image.getAttribute('src') !== fallbackUrl) image.setAttribute('src', fallbackUrl);
+}
 
 function formatAverage(value: number | null) {
   if (value === null || !Number.isFinite(value)) return '—';
@@ -138,9 +144,15 @@ export function ForecastCard({
           height={87}
           loading={priority ? 'eager' : 'lazy'}
           onError={(event) => {
-            const fallbackUrl = `/api/steam-artwork/${game.appId}`;
-            if (event.currentTarget.getAttribute('src') !== fallbackUrl) {
-              event.currentTarget.setAttribute('src', fallbackUrl);
+            useCurrentSteamArtwork(event.currentTarget, game.appId);
+          }}
+          onLoad={(event) => {
+            const image = event.currentTarget;
+            if (!image.naturalWidth || !image.naturalHeight) return;
+
+            const loadedAspectRatio = image.naturalWidth / image.naturalHeight;
+            if (Math.abs(loadedAspectRatio - STEAM_CAPSULE_ASPECT_RATIO) > 0.03) {
+              useCurrentSteamArtwork(image, game.appId);
             }
           }}
           src={game.imageUrl}

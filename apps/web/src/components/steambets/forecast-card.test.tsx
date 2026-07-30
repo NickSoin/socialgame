@@ -50,6 +50,19 @@ describe('ForecastCard', () => {
     expect(artwork.getAttribute('src')).toBe('/api/steam-artwork/42');
   });
 
+  it('replaces a legacy Steam header image with the current capsule artwork', () => {
+    render(<ForecastCard game={game} isAuthenticated />);
+
+    const artwork = screen.getByRole('img', { name: 'Input Limit Test artwork' });
+    Object.defineProperties(artwork, {
+      naturalWidth: { configurable: true, value: 460 },
+      naturalHeight: { configurable: true, value: 215 },
+    });
+    fireEvent.load(artwork);
+
+    expect(artwork.getAttribute('src')).toBe('/api/steam-artwork/42');
+  });
+
   it('enforces the target-specific character limits while typing', () => {
     render(<ForecastCard game={game} isAuthenticated />);
 
