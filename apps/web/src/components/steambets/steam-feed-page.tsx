@@ -22,7 +22,12 @@ export async function SteamFeedPage({
     searchParams,
     getSteamPopularUpcoming(),
     getCurrentUserSteamBets(),
-    mode === 'trending' ? getSteamBetTrends() : Promise.resolve([]),
+    mode === 'trending'
+      ? getSteamBetTrends().catch((error: unknown) => {
+          console.error('Could not load trending Steam games.', error);
+          return [];
+        })
+      : Promise.resolve([]),
   ]);
 
   if (mode === 'involved' && !userState.isAuthenticated) redirect('/login?next=/involved');

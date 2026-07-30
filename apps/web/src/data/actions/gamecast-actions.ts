@@ -7,6 +7,7 @@ import { createSupabaseClient } from '@/supabase-clients/server';
 import { AVATARS } from '@/lib/gamecast';
 import { STEAM_BET_TARGET_KEYS } from '@/lib/steam-bets';
 import { getSteamPopularUpcoming } from '@/data/steam-popular-upcoming';
+import { publicNicknameSchema } from '@/lib/public-nickname';
 
 const outcomeSchema = z.enum(['yes', 'no']);
 
@@ -145,6 +146,32 @@ export const updateProfileAction = authActionClient
     revalidatePath(`/profile/${parsedInput.username}`);
     revalidatePath('/leaderboards');
     return data;
+  });
+
+export const updatePublicNicknameAction = authActionClient
+  .schema(publicNicknameSchema)
+  .action(async ({ parsedInput, ctx }) => {
+    const supabase = await createSupabaseClient();
+    const { data: profile, error: profileError } = await supabase
+      .from('profiles')
+      .select('username,bio,avatar_id,links')
+      .eq('id', ctx.userId)
+      .single();
+
+    if (profileError) throw new Error(profileError.message);
+
+    const { data, error } = await supabase.rpc('update_own_profile', {
+      p_username: profile.username,
+      p_display_name: parsedInput.nickname,
+      p_bio: profile.bio,
+      p_avatar_id: profile.avatar_id,
+      p_links: profile.links,
+    });
+
+    if (error) throw new Error(error.message);
+
+    revalidatePath(`/@${profile.username}`);
+    return { nickname: data.display_name };
   });
 
 export const resolveMarketAction = authActionClient

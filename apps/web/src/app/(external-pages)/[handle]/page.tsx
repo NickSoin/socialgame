@@ -1,6 +1,7 @@
 import { notFound } from 'next/navigation';
 import { Suspense } from 'react';
-import { getProfileByUsername } from '@/data/gamecast';
+import { PublicNicknameForm } from '@/components/steambets/public-nickname-form';
+import { getCurrentUserContext, getProfileByUsername } from '@/data/gamecast';
 
 async function PublicProfileContent({
   params,
@@ -10,12 +11,22 @@ async function PublicProfileContent({
   const { handle: encodedHandle } = await params;
   const handle = decodeURIComponent(encodedHandle);
   if (!handle.startsWith('@') || handle.length < 2) notFound();
-  const profile = await getProfileByUsername(handle.slice(1));
+  const [profile, viewer] = await Promise.all([
+    getProfileByUsername(handle.slice(1)),
+    getCurrentUserContext(),
+  ]);
   if (!profile) notFound();
+  const isOwner = viewer.user?.id === profile.id;
 
   return (
-    <main id="main-content" className="sb-profile-empty">
-      <h1 className="sr-only">@{profile.username}</h1>
+    <main id="main-content" className="sb-shell sb-profile-page">
+      <section className="sb-profile-card" aria-labelledby="profile-name">
+        <div className="sb-profile-card__identity">
+          <h1 id="profile-name">{profile.display_name}</h1>
+          <p>@{profile.username}</p>
+        </div>
+        {isOwner && <PublicNicknameForm nickname={profile.display_name} />}
+      </section>
     </main>
   );
 }
