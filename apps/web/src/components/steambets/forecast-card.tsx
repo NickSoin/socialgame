@@ -1,6 +1,6 @@
 'use client';
 
-import { useRef, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { useAction } from 'next-safe-action/hooks';
 import { placeSteamBetAction } from '@/data/actions/gamecast-actions';
 import type {
@@ -23,6 +23,23 @@ const STEAM_CAPSULE_ASPECT_RATIO = 231 / 87;
 function useCurrentSteamArtwork(image: HTMLImageElement, appId: number) {
   const fallbackUrl = `/api/steam-artwork/${appId}`;
   if (image.getAttribute('src') !== fallbackUrl) image.setAttribute('src', fallbackUrl);
+}
+
+function ensureCurrentSteamArtwork(
+  image: HTMLImageElement,
+  appId: number,
+  loadEventReceived = false,
+) {
+  if (!loadEventReceived && !image.complete) return;
+
+  const loadedAspectRatio = image.naturalWidth / image.naturalHeight;
+  if (
+    !image.naturalWidth ||
+    !image.naturalHeight ||
+    Math.abs(loadedAspectRatio - STEAM_CAPSULE_ASPECT_RATIO) > 0.03
+  ) {
+    useCurrentSteamArtwork(image, appId);
+  }
 }
 
 function formatAverage(value: number | null) {
@@ -133,6 +150,22 @@ export function ForecastCard({
   isAuthenticated: boolean;
   priority?: boolean;
 }) {
+  const artworkRef = useRef<HTMLImageElement>(null);
+
+  useEffect(() => {
+    const image = artworkRef.current;
+    if (!image) return;
+
+    const checkArtwork = () => ensureCurrentSteamArtwork(image, game.appId);
+    checkArtwork();
+    image.addEventListener('load', checkArtwork);
+    image.addEventListener('error', checkArtwork);
+    return () => {
+      image.removeEventListener('load', checkArtwork);
+      image.removeEventListener('error', checkArtwork);
+    };
+  }, [game.appId, game.imageUrl]);
+
   return (
     <article className="sb-game-card">
       <div className="sb-game-card__image">
@@ -147,14 +180,9 @@ export function ForecastCard({
             useCurrentSteamArtwork(event.currentTarget, game.appId);
           }}
           onLoad={(event) => {
-            const image = event.currentTarget;
-            if (!image.naturalWidth || !image.naturalHeight) return;
-
-            const loadedAspectRatio = image.naturalWidth / image.naturalHeight;
-            if (Math.abs(loadedAspectRatio - STEAM_CAPSULE_ASPECT_RATIO) > 0.03) {
-              useCurrentSteamArtwork(image, game.appId);
-            }
+            ensureCurrentSteamArtwork(event.currentTarget, game.appId, true);
           }}
+          ref={artworkRef}
           src={game.imageUrl}
           width={231}
         />

@@ -30,6 +30,7 @@ const game: SteamUpcomingGame = {
 afterEach(() => {
   cleanup();
   mocks.execute.mockReset();
+  vi.restoreAllMocks();
 });
 
 describe('ForecastCard', () => {
@@ -61,6 +62,18 @@ describe('ForecastCard', () => {
     fireEvent.load(artwork);
 
     expect(artwork.getAttribute('src')).toBe('/api/steam-artwork/42');
+  });
+
+  it('replaces a legacy image that finished loading before hydration', () => {
+    vi.spyOn(HTMLImageElement.prototype, 'complete', 'get').mockReturnValue(true);
+    vi.spyOn(HTMLImageElement.prototype, 'naturalWidth', 'get').mockReturnValue(460);
+    vi.spyOn(HTMLImageElement.prototype, 'naturalHeight', 'get').mockReturnValue(215);
+
+    render(<ForecastCard game={game} isAuthenticated />);
+
+    expect(
+      screen.getByRole('img', { name: 'Input Limit Test artwork' }).getAttribute('src'),
+    ).toBe('/api/steam-artwork/42');
   });
 
   it('enforces the target-specific character limits while typing', () => {
