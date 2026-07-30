@@ -5,7 +5,11 @@ import { z } from 'zod';
 import { authActionClient } from '@/lib/safe-action';
 import { createSupabaseClient } from '@/supabase-clients/server';
 import { AVATARS } from '@/lib/gamecast';
-import { STEAM_BET_TARGET_KEYS } from '@/lib/steam-bets';
+import {
+  parseSteamBetDraft,
+  STEAM_BET_INPUT_LIMITS,
+  STEAM_BET_TARGET_KEYS,
+} from '@/lib/steam-bets';
 import { getSteamPopularUpcoming } from '@/data/steam-popular-upcoming';
 import { publicNicknameSchema } from '@/lib/public-nickname';
 
@@ -16,10 +20,17 @@ export const placeSteamBetAction = authActionClient
     z.object({
       steamAppId: z.number().int().positive(),
       targetKey: z.enum(STEAM_BET_TARGET_KEYS),
-      value: z.number().finite().min(0).max(100_000_000),
+      value: z.string().trim().min(1).max(Math.max(...Object.values(STEAM_BET_INPUT_LIMITS))),
     }),
   )
   .action(async ({ parsedInput, ctx }) => {
+    const value = parseSteamBetDraft(parsedInput.targetKey, parsedInput.value);
+    if (value === null) {
+      throw new Error(
+        `Enter a valid value using no more than ${STEAM_BET_INPUT_LIMITS[parsedInput.targetKey]} characters.`,
+      );
+    }
+
     const games = await getSteamPopularUpcoming();
     const game = games.find((candidate) => candidate.appId === parsedInput.steamAppId);
     if (!game) throw new Error('This game is no longer open for predictions.');
@@ -31,7 +42,7 @@ export const placeSteamBetAction = authActionClient
         steam_app_id: parsedInput.steamAppId,
         target_key: parsedInput.targetKey,
         user_id: ctx.userId,
-        value: parsedInput.value,
+        value,
         game_name: game.name,
         release_date: game.releaseDate,
         release_label: game.releaseLabel,

@@ -7,6 +7,10 @@ import type {
   SteamBetTarget,
   SteamUpcomingGame,
 } from '@/lib/steam-bets';
+import {
+  parseSteamBetDraft,
+  sanitizeSteamBetDraft,
+} from '@/lib/steam-bets';
 
 type ForecastFieldMode = 'idle' | 'editing' | 'committed';
 
@@ -28,7 +32,9 @@ function ForecastField({
     target.userValue === null ? '' : String(target.userValue),
   );
   const [errorMessage, setErrorMessage] = useState('');
-  const submittedValue = useRef<number | null>(target.userValue);
+  const submittedValue = useRef<string | null>(
+    target.userValue === null ? null : String(target.userValue),
+  );
   const inputId = `steam-bet-${appId}-${target.key}`;
 
   const { execute, status } = useAction(placeSteamBetAction, {
@@ -43,12 +49,8 @@ function ForecastField({
     },
   });
 
-  const value = Number(draft);
-  const isValid =
-    draft.trim() !== '' &&
-    Number.isFinite(value) &&
-    value >= target.min &&
-    value <= target.max;
+  const value = parseSteamBetDraft(target.key, draft);
+  const isValid = value !== null;
 
   return (
     <form
@@ -56,8 +58,8 @@ function ForecastField({
       onSubmit={(event) => {
         event.preventDefault();
         if (!isAuthenticated || mode !== 'editing' || !isValid || status === 'executing') return;
-        submittedValue.current = value;
-        execute({ steamAppId: appId, targetKey: target.key, value });
+        submittedValue.current = draft;
+        execute({ steamAppId: appId, targetKey: target.key, value: draft });
       }}
     >
       <label htmlFor={inputId}>{target.label}</label>
@@ -68,15 +70,16 @@ function ForecastField({
           aria-readonly={mode === 'committed'}
           autoComplete="off"
           disabled={!isAuthenticated}
-          inputMode="decimal"
-          max={target.max}
-          min={target.min}
+          inputMode={target.step === 1 ? 'numeric' : 'decimal'}
+          maxLength={target.maxLength}
           name={`${appId}-${target.key}`}
+          pattern={target.step === 1 ? '[0-9]*' : '[0-9]+([.][0-9]+)?'}
           readOnly={mode === 'committed'}
-          step={target.step}
-          type="number"
+          type="text"
           value={draft}
-          onChange={(event) => setDraft(event.target.value)}
+          onChange={(event) => {
+            setDraft(sanitizeSteamBetDraft(target.key, event.target.value));
+          }}
           onFocus={() => {
             if (mode === 'idle' && isAuthenticated) setMode('editing');
           }}
