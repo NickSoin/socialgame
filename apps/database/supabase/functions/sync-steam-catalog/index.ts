@@ -229,7 +229,6 @@ async function fetchSteamAppDetails(appId: number): Promise<SteamAppDetails | nu
     const payload = await fetchJsonWithRetry<Record<string, {
       success?: boolean;
       data?: {
-        capsule_image?: unknown;
         header_image?: unknown;
         release_date?: { coming_soon?: unknown; date?: unknown };
       };
@@ -241,7 +240,6 @@ async function fetchSteamAppDetails(appId: number): Promise<SteamAppDetails | nu
     return {
       imageUrl:
         trustedImageUrl(app.data.header_image) ??
-        trustedImageUrl(app.data.capsule_image) ??
         fallbackHeaderImage(appId),
       releaseDate,
       releaseLabel: releaseDate ? formatReleaseLabel(releaseDate) : 'TBA',

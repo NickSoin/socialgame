@@ -83,3 +83,6 @@ verify_jwt = false
 
 [functions.steam-artwork]
 verify_jwt = false
+
+[functions.steam-popular-upcoming]
+verify_jwt = false

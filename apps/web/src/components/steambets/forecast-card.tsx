@@ -1,107 +1,22 @@
-'use client';
+"use client";
 
-import { useEffect, useRef, useState } from 'react';
-import { useAction } from 'next-safe-action/hooks';
-import { placeSteamBetAction } from '@/data/actions/gamecast-actions';
-import type {
-  SteamBetTarget,
-  SteamUpcomingGame,
-} from '@/lib/steam-bets';
-import {
-  parseSteamBetDraft,
-  sanitizeSteamBetDraft,
-} from '@/lib/steam-bets';
+import { useRef, useState } from "react";
+import { useAction } from "next-safe-action/hooks";
+import { placeSteamBetAction } from "@/data/actions/gamecast-actions";
+import type { SteamBetTarget, SteamUpcomingGame } from "@/lib/steam-bets";
+import { parseSteamBetDraft, sanitizeSteamBetDraft } from "@/lib/steam-bets";
+import { GameHero } from "./game-hero";
 
-type ForecastFieldMode = 'idle' | 'editing' | 'committed';
+type ForecastFieldMode = "idle" | "editing" | "committed";
 
-const compactNumber = new Intl.NumberFormat('en-US', {
+const compactNumber = new Intl.NumberFormat("en-US", {
   maximumFractionDigits: 1,
-  notation: 'compact',
+  notation: "compact",
 });
-const STEAM_GAME_HERO_ASPECT_RATIO = 460 / 215;
-
-function currentSteamArtworkUrl(appId: number) {
-  const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
-
-  try {
-    if (supabaseUrl && new URL(supabaseUrl).hostname.endsWith('.supabase.co')) {
-      const resolverUrl = new URL('/functions/v1/steam-artwork', supabaseUrl);
-      resolverUrl.searchParams.set('appId', String(appId));
-      return resolverUrl.toString();
-    }
-  } catch {
-    // Use the local route when the configured URL is absent or malformed.
-  }
-
-  return `/api/steam-artwork/${appId}`;
-}
-
-function useCurrentSteamArtwork(image: HTMLImageElement, appId: number) {
-  const fallbackUrl = currentSteamArtworkUrl(appId);
-  if (image.getAttribute('src') !== fallbackUrl) image.setAttribute('src', fallbackUrl);
-}
-
-function ensureCurrentSteamArtwork(
-  image: HTMLImageElement,
-  appId: number,
-  loadEventReceived = false,
-) {
-  if (!loadEventReceived && !image.complete) return;
-
-  const loadedAspectRatio = image.naturalWidth / image.naturalHeight;
-  if (
-    !image.naturalWidth ||
-    !image.naturalHeight ||
-    Math.abs(loadedAspectRatio - STEAM_GAME_HERO_ASPECT_RATIO) > 0.03
-  ) {
-    useCurrentSteamArtwork(image, appId);
-  }
-}
-
-function GameHero({ game, priority }: { game: SteamUpcomingGame; priority: boolean }) {
-  const artworkRef = useRef<HTMLImageElement>(null);
-
-  useEffect(() => {
-    const image = artworkRef.current;
-    if (!image) return;
-
-    const checkArtwork = () => ensureCurrentSteamArtwork(image, game.appId);
-    checkArtwork();
-    image.addEventListener('load', checkArtwork);
-    image.addEventListener('error', checkArtwork);
-    return () => {
-      image.removeEventListener('load', checkArtwork);
-      image.removeEventListener('error', checkArtwork);
-    };
-  }, [game.appId, game.imageUrl]);
-
-  return (
-    <div className="sb-game-card__image">
-      {/* eslint-disable-next-line @next/next/no-img-element */}
-      <img
-        alt={`${game.name} artwork`}
-        decoding="async"
-        fetchPriority={priority ? 'high' : 'auto'}
-        height={215}
-        loading={priority ? 'eager' : 'lazy'}
-        onError={(event) => {
-          useCurrentSteamArtwork(event.currentTarget, game.appId);
-        }}
-        onLoad={(event) => {
-          ensureCurrentSteamArtwork(event.currentTarget, game.appId, true);
-        }}
-        ref={artworkRef}
-        src={game.imageUrl}
-        width={460}
-      />
-    </div>
-  );
-}
-
 function formatAverage(value: number | null) {
-  if (value === null || !Number.isFinite(value)) return '—';
+  if (value === null || !Number.isFinite(value)) return "—";
   if (Math.abs(value) >= 1000) return compactNumber.format(value);
-  return new Intl.NumberFormat('en-US', { maximumFractionDigits: 2 }).format(value);
+  return new Intl.NumberFormat("en-US", { maximumFractionDigits: 2 }).format(value);
 }
 
 function ForecastField({
@@ -116,26 +31,24 @@ function ForecastField({
   isAuthenticated: boolean;
 }) {
   const [mode, setMode] = useState<ForecastFieldMode>(
-    target.userValue === null ? 'idle' : 'committed',
+    target.userValue === null ? "idle" : "committed",
   );
-  const [draft, setDraft] = useState(
-    target.userValue === null ? '' : String(target.userValue),
-  );
-  const [errorMessage, setErrorMessage] = useState('');
+  const [draft, setDraft] = useState(target.userValue === null ? "" : String(target.userValue));
+  const [errorMessage, setErrorMessage] = useState("");
   const submittedValue = useRef<string | null>(
     target.userValue === null ? null : String(target.userValue),
   );
   const inputId = `steam-bet-${appId}-${target.key}`;
 
   const { execute, status } = useAction(placeSteamBetAction, {
-    onExecute: () => setErrorMessage(''),
+    onExecute: () => setErrorMessage(""),
     onSuccess: () => {
       if (submittedValue.current === null) return;
       setDraft(String(submittedValue.current));
-      setMode('committed');
+      setMode("committed");
     },
     onError: ({ error }) => {
-      setErrorMessage(error.serverError ?? 'Try this prediction again.');
+      setErrorMessage(error.serverError ?? "Try this prediction again.");
     },
   });
 
@@ -147,7 +60,7 @@ function ForecastField({
       className={`sb-forecast-field is-${mode}`}
       onSubmit={(event) => {
         event.preventDefault();
-        if (!isAuthenticated || mode !== 'editing' || !isValid || status === 'executing') return;
+        if (!isAuthenticated || mode !== "editing" || !isValid || status === "executing") return;
         submittedValue.current = draft;
         execute({ steamAppId: appId, targetKey: target.key, value: draft });
       }}
@@ -158,21 +71,21 @@ function ForecastField({
           <input
             id={inputId}
             aria-label={`${target.label} for ${gameName}`}
-            aria-readonly={mode === 'committed'}
+            aria-readonly={mode === "committed"}
             autoComplete="off"
             disabled={!isAuthenticated}
-            inputMode={target.step === 1 ? 'numeric' : 'decimal'}
+            inputMode={target.step === 1 ? "numeric" : "decimal"}
             maxLength={target.maxLength}
             name={`${appId}-${target.key}`}
-            pattern={target.step === 1 ? '[0-9]*' : '[0-9]+([.][0-9]+)?'}
-            readOnly={mode === 'committed'}
+            pattern={target.step === 1 ? "[0-9]*" : "[0-9]+([.][0-9]+)?"}
+            readOnly={mode === "committed"}
             type="text"
             value={draft}
             onChange={(event) => {
               setDraft(sanitizeSteamBetDraft(target.key, event.target.value));
             }}
             onFocus={() => {
-              if (mode === 'idle' && isAuthenticated) setMode('editing');
+              if (mode === "idle" && isAuthenticated) setMode("editing");
             }}
           />
         </div>
@@ -181,17 +94,19 @@ function ForecastField({
           <span>{compactNumber.format(target.predictionCount)} Vol.</span>
         </div>
       </div>
-      {mode === 'editing' && (
+      {mode === "editing" && (
         <button
           className="sb-bet-approve"
-          disabled={!isValid || status === 'executing'}
+          disabled={!isValid || status === "executing"}
           type="submit"
         >
-          {status === 'executing' ? 'Saving…' : 'Approve'}
+          {status === "executing" ? "Saving…" : "Approve"}
         </button>
       )}
       {errorMessage && (
-        <p className="sb-forecast-error" aria-live="polite">{errorMessage}</p>
+        <p className="sb-forecast-error" aria-live="polite">
+          {errorMessage}
+        </p>
       )}
     </form>
   );
@@ -208,7 +123,12 @@ export function ForecastCard({
 }) {
   return (
     <article className="sb-game-card">
-      <GameHero game={game} priority={priority} />
+      <GameHero
+        appId={game.appId}
+        name={game.name}
+        priority={priority}
+        wishlistRank={game.wishlistRank}
+      />
       <div className="sb-game-card__content">
         <header className="sb-game-card__header">
           <h2>{game.name}</h2>

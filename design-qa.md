@@ -65,4 +65,21 @@
 - [x] rename the confirmation to Approve and the first market to peak CCU
 - [x] verify desktop rendering, navigation, tests, types, and lint
 
+## Wishlist ranks, Steam Popular Upcoming, and shared search images
+
+- References: `codex-clipboard-62438871-fe3d-4b8d-bed4-6b2dad8a66b5.png` and `codex-clipboard-1b15dc35-3a70-42c5-b235-49f83b370fee.png`.
+- Viewport: desktop, 1600 x 900.
+- Wishlist badge: bottom-left overlay, dark navy fill, cyan border, compact white rank text. The first five visible ranks match the supplied reference: `#77`, `#40`, `#278`, `#122`, `#35`.
+- Popular Upcoming: the first five rendered games match Steam's live `popularcomingsoon` order: Corsair Cove, Beast of Reincarnation, The Relic: First Guardian, MARVEL Tōkon: Fighting Souls, and IRON NEST: Heavy Turret Simulator.
+- Image consistency: feed cards and search results both render the shared GameHero component through the same Steam header-image resolver. The eight inspected feed images and eight inspected search images all loaded at 460 x 215 with no broken images.
+- Search: the `gu` query returns eight dynamic catalog matches with artwork and wishlist ranks. Selecting Guild Wars 3™ navigates to its filtered card and preserves the same GameHero and rank.
+- Automated checks: 107 tests passed, TypeScript passed, lint passed, the local Edge Function returned 200 Steam rows, and the Sites production build completed.
+
+## Card hover and Popular Upcoming ordering
+
+- Hover reference: the live Polymarket desktop market grid. The interaction is a restrained 2 px vertical lift with a slightly stronger shadow and border, using a 160 ms ease transition.
+- The hover treatment runs only on precise hover-capable pointers. Reduced-motion users receive the static card state.
+- Popular Upcoming is sorted after TopWishlisted ranks have been hydrated: release date ascending first, wishlist rank ascending within the same release day, with unranked games after ranked games and unknown dates last.
+- The sorter is immutable and has focused tests for cross-day order, same-day rank order, missing ranks, and TBA dates.
+
 final result: passed

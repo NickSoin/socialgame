@@ -4,9 +4,34 @@ import {
   type SteamBetSummary,
   type SteamBetTrend,
   type SteamUpcomingGame,
-} from './steam-bets';
+} from "./steam-bets";
+import { getSteamGameHeroUrl } from "./steam-game-hero";
 
-export type SteamFeedMode = 'upcoming' | 'trending' | 'involved';
+export type SteamFeedMode = "upcoming" | "trending" | "involved";
+
+function releaseTimestamp(game: SteamUpcomingGame) {
+  const timestamp = Date.parse(game.releaseDate);
+  return Number.isNaN(timestamp) ? Number.POSITIVE_INFINITY : timestamp;
+}
+
+export function sortPopularUpcomingGames(
+  games: SteamUpcomingGame[],
+): SteamUpcomingGame[] {
+  return [...games].sort((left, right) => {
+    const leftRelease = releaseTimestamp(left);
+    const rightRelease = releaseTimestamp(right);
+
+    if (leftRelease !== rightRelease) {
+      return leftRelease < rightRelease ? -1 : 1;
+    }
+
+    const leftRank = left.wishlistRank ?? Number.POSITIVE_INFINITY;
+    const rightRank = right.wishlistRank ?? Number.POSITIVE_INFINITY;
+    if (leftRank !== rightRank) return leftRank < rightRank ? -1 : 1;
+
+    return 0;
+  });
+}
 
 function fromSnapshot(row: SteamBetRow | SteamBetTrend): SteamUpcomingGame | null {
   if (!row.game_name || !row.release_date || !row.release_label || !row.image_url) return null;
@@ -15,7 +40,8 @@ function fromSnapshot(row: SteamBetRow | SteamBetTrend): SteamUpcomingGame | nul
     name: row.game_name,
     releaseDate: row.release_date,
     releaseLabel: row.release_label,
-    imageUrl: row.image_url,
+    imageUrl: getSteamGameHeroUrl(row.steam_app_id),
+    wishlistRank: null,
     targets: STEAM_BET_TARGETS.map((target) => ({
       ...target,
       averageValue: null,
@@ -40,7 +66,7 @@ export function buildSteamFeed({
 }): SteamUpcomingGame[] {
   const games = new Map(liveGames.map((game) => [game.appId, game]));
 
-  if (mode === 'trending') {
+  if (mode === "trending") {
     for (const trend of trends) {
       if (!games.has(trend.steam_app_id)) {
         const snapshot = fromSnapshot(trend);
@@ -49,7 +75,7 @@ export function buildSteamFeed({
     }
   }
 
-  if (mode === 'involved') {
+  if (mode === "involved") {
     for (const bet of bets) {
       if (!games.has(bet.steam_app_id)) {
         const snapshot = fromSnapshot(bet);
@@ -62,17 +88,14 @@ export function buildSteamFeed({
     bets.map((bet) => [`${bet.steam_app_id}:${bet.target_key}`, bet.value]),
   );
   const summaryValues = new Map(
-    summaries.map((summary) => [
-      `${summary.steam_app_id}:${summary.target_key}`,
-      summary,
-    ]),
+    summaries.map((summary) => [`${summary.steam_app_id}:${summary.target_key}`, summary]),
   );
   const involvedIds = new Set(bets.map((bet) => bet.steam_app_id));
   const trendCounts = new Map(trends.map((trend) => [trend.steam_app_id, trend.bet_count]));
 
   let result = [...games.values()];
-  if (mode === 'involved') result = result.filter((game) => involvedIds.has(game.appId));
-  if (mode === 'trending') {
+  if (mode === "involved") result = result.filter((game) => involvedIds.has(game.appId));
+  if (mode === "trending") {
     result.sort((a, b) => (trendCounts.get(b.appId) ?? 0) - (trendCounts.get(a.appId) ?? 0));
   }
 
@@ -80,10 +103,8 @@ export function buildSteamFeed({
     ...game,
     targets: game.targets.map((target) => ({
       ...target,
-      averageValue:
-        summaryValues.get(`${game.appId}:${target.key}`)?.average_value ?? null,
-      predictionCount:
-        summaryValues.get(`${game.appId}:${target.key}`)?.prediction_count ?? 0,
+      averageValue: summaryValues.get(`${game.appId}:${target.key}`)?.average_value ?? null,
+      predictionCount: summaryValues.get(`${game.appId}:${target.key}`)?.prediction_count ?? 0,
       userValue: betValues.get(`${game.appId}:${target.key}`) ?? null,
     })),
   }));

@@ -1,5 +1,5 @@
-import { describe, expect, it } from 'vitest';
-import { parseSteamPopularUpcoming } from './parse-steam-popular-upcoming';
+import { describe, expect, it } from "vitest";
+import { parseSteamPopularUpcoming } from "./parse-steam-popular-upcoming";
 
 const STEAM_RESULTS_HTML = `
   <a href="https://store.steampowered.com/app/4739040/" class="search_result_row" data-ds-appid="4739040">
@@ -9,24 +9,25 @@ const STEAM_RESULTS_HTML = `
   </a>
 `;
 
-describe('parseSteamPopularUpcoming', () => {
-  it('maps the official Steam search row into a game card', () => {
+describe("parseSteamPopularUpcoming", () => {
+  it("maps the official Steam search row into a game card", () => {
     const [game] = parseSteamPopularUpcoming(STEAM_RESULTS_HTML);
 
     expect(game).toMatchObject({
       appId: 4_739_040,
-      name: 'DISCIPLINE & SIMULATOR',
-      releaseLabel: 'July 30',
-      imageUrl: expect.stringContaining('/4739040/'),
+      name: "DISCIPLINE & SIMULATOR",
+      releaseLabel: "July 30",
+      imageUrl: "/api/steam-artwork/4739040",
+      wishlistRank: null,
     });
     expect(game?.targets.map((target) => target.key)).toEqual([
-      'first_weekend_ccu',
-      'first_month_reviews',
-      'full_price_us',
+      "first_weekend_ccu",
+      "first_month_reviews",
+      "full_price_us",
     ]);
   });
 
-  it('skips incomplete rows instead of rendering broken cards', () => {
+  it("skips incomplete rows instead of rendering broken cards", () => {
     expect(parseSteamPopularUpcoming('<a href="/" data-ds-appid="1"></a>')).toEqual([]);
   });
 });

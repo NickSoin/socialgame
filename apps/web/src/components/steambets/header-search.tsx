@@ -1,32 +1,27 @@
-'use client';
+"use client";
 
-import { Command as CommandPrimitive } from 'cmdk';
-import { Search, X } from 'lucide-react';
-import { usePathname, useRouter, useSearchParams } from 'next/navigation';
-import { useEffect, useMemo, useRef, useState } from 'react';
-import type { SteamUpcomingGame } from '@/lib/steam-bets';
+import { Command as CommandPrimitive } from "cmdk";
+import { Search, X } from "lucide-react";
+import { useRouter, useSearchParams } from "next/navigation";
+import { useEffect, useRef, useState } from "react";
+import type { SteamUpcomingGame } from "@/lib/steam-bets";
+import { GameHero } from "./game-hero";
 
 export type HeaderSearchGame = Pick<
   SteamUpcomingGame,
-  'appId' | 'imageUrl' | 'name' | 'releaseLabel'
+  "appId" | "imageUrl" | "name" | "releaseLabel" | "wishlistRank"
 >;
 
-function normalizeSearchValue(value: string) {
-  return value
-    .normalize('NFKD')
-    .replace(/\p{Diacritic}/gu, '')
-    .toLocaleLowerCase('en-US');
-}
-
-export function HeaderSearch({ games }: { games: HeaderSearchGame[] }) {
-  const pathname = usePathname();
+export function HeaderSearch() {
   const router = useRouter();
   const searchParams = useSearchParams();
-  const queryFromUrl = searchParams.get('q') ?? '';
+  const queryFromUrl = searchParams.get("q") ?? "";
   const [query, setQuery] = useState(queryFromUrl);
   const [isOpen, setIsOpen] = useState(false);
+  const [isLoading, setIsLoading] = useState(false);
+  const [suggestions, setSuggestions] = useState<HeaderSearchGame[]>([]);
   const closeTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
-  const action = ['/', '/trending', '/involved'].includes(pathname) ? pathname : '/';
+  const action = "/";
 
   useEffect(() => setQuery(queryFromUrl), [queryFromUrl]);
   useEffect(
@@ -36,19 +31,44 @@ export function HeaderSearch({ games }: { games: HeaderSearchGame[] }) {
     [],
   );
 
-  const suggestions = useMemo(() => {
-    const normalizedQuery = normalizeSearchValue(query.trim());
-    if (!normalizedQuery) return [];
+  useEffect(() => {
+    const value = query.trim();
+    if (!value) {
+      setSuggestions([]);
+      setIsLoading(false);
+      return;
+    }
 
-    return games
-      .filter((game) => normalizeSearchValue(game.name).includes(normalizedQuery))
-      .slice(0, 7);
-  }, [games, query]);
+    const controller = new AbortController();
+    const timer = setTimeout(async () => {
+      setIsLoading(true);
+      try {
+        const response = await fetch(`/api/games/search?q=${encodeURIComponent(value)}`, {
+          signal: controller.signal,
+        });
+        if (!response.ok) throw new Error(`Search returned ${response.status}`);
+        const payload = (await response.json()) as { games?: HeaderSearchGame[] };
+        setSuggestions(payload.games ?? []);
+      } catch (error) {
+        if (!controller.signal.aborted) {
+          console.error("Could not search games.", error);
+          setSuggestions([]);
+        }
+      } finally {
+        if (!controller.signal.aborted) setIsLoading(false);
+      }
+    }, 180);
+
+    return () => {
+      clearTimeout(timer);
+      controller.abort();
+    };
+  }, [query]);
 
   const navigateToQuery = (nextQuery: string) => {
     const value = nextQuery.trim();
     const params = new URLSearchParams();
-    if (value) params.set('q', value);
+    if (value) params.set("q", value);
     router.push(params.size ? `${action}?${params.toString()}` : action);
     setIsOpen(false);
   };
@@ -86,7 +106,7 @@ export function HeaderSearch({ games }: { games: HeaderSearchGame[] }) {
           value={query}
           onFocus={() => setIsOpen(true)}
           onKeyDown={(event) => {
-            if (event.key === 'Escape') setIsOpen(false);
+            if (event.key === "Escape") setIsOpen(false);
           }}
           onValueChange={(value) => {
             setQuery(value);
@@ -99,9 +119,9 @@ export function HeaderSearch({ games }: { games: HeaderSearchGame[] }) {
             className="sb-search__clear"
             type="button"
             onClick={() => {
-              setQuery('');
+              setQuery("");
               setIsOpen(false);
-              if (queryFromUrl) navigateToQuery('');
+              if (queryFromUrl) navigateToQuery("");
             }}
           >
             <X size={18} aria-hidden="true" />
@@ -111,7 +131,11 @@ export function HeaderSearch({ games }: { games: HeaderSearchGame[] }) {
 
       {isOpen && query.trim() && (
         <CommandPrimitive.List className="sb-search-results">
-          {suggestions.length ? (
+          {isLoading ? (
+            <div className="sb-search-empty" role="status">
+              Searching games...
+            </div>
+          ) : suggestions.length ? (
             <CommandPrimitive.Group heading="Games">
               {suggestions.map((game) => (
                 <CommandPrimitive.Item
@@ -120,8 +144,12 @@ export function HeaderSearch({ games }: { games: HeaderSearchGame[] }) {
                   value={`${game.name} ${game.appId}`}
                   onSelect={() => navigateToQuery(game.name)}
                 >
-                  {/* eslint-disable-next-line @next/next/no-img-element */}
-                  <img alt="" height={38} src={game.imageUrl} width={100} />
+                  <GameHero
+                    appId={game.appId}
+                    name={game.name}
+                    variant="search"
+                    wishlistRank={game.wishlistRank}
+                  />
                   <span>
                     <strong>{game.name}</strong>
                     <small>{game.releaseLabel}</small>

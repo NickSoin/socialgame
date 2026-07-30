@@ -1,11 +1,11 @@
-import { createClient } from '@supabase/supabase-js';
-import 'server-only';
-import type { Database } from '@/lib/database.types';
-import type { SteamUpcomingGame } from '@/lib/steam-bets';
-import { toSteamUpcomingGame } from '@/lib/steam-game-catalog';
+import { createClient } from "@supabase/supabase-js";
+import "server-only";
+import type { Database } from "@/lib/database.types";
+import type { SteamUpcomingGame } from "@/lib/steam-bets";
+import { toSteamUpcomingGame } from "@/lib/steam-game-catalog";
 
 const CATALOG_FIELDS =
-  'steam_app_id,name,image_url,release_date,release_label' as const;
+  "steam_app_id,name,image_url,release_date,release_label,wishlist_rank" as const;
 
 function createPublicCatalogClient() {
   return createClient<Database>(
@@ -18,19 +18,68 @@ function createPublicCatalogClient() {
 export async function getSteamCatalogGames(limit = 200): Promise<SteamUpcomingGame[] | null> {
   const supabase = createPublicCatalogClient();
   const { data, error } = await supabase
-    .from('steam_games')
+    .from("steam_games")
     .select(CATALOG_FIELDS)
-    .eq('lifecycle_status', 'upcoming')
-    .eq('is_wishlisted', true)
-    .order('wishlist_rank', { ascending: true })
+    .eq("lifecycle_status", "upcoming")
+    .eq("is_wishlisted", true)
+    .order("wishlist_rank", { ascending: true })
     .limit(limit);
 
   if (error) {
-    console.error('Could not load the Steam wishlist catalog.', error);
+    console.error("Could not load the Steam wishlist catalog.", error);
     return null;
   }
 
   return (data ?? []).map(toSteamUpcomingGame);
+}
+
+export async function searchSteamCatalogGames(
+  query: string,
+  limit = 20,
+): Promise<SteamUpcomingGame[]> {
+  const normalizedQuery = query.trim().slice(0, 80);
+  if (!normalizedQuery) return [];
+
+  const escapedQuery = normalizedQuery.replace(/[\\%_]/g, "\\$&");
+  const supabase = createPublicCatalogClient();
+  const { data, error } = await supabase
+    .from("steam_games")
+    .select(CATALOG_FIELDS)
+    .eq("lifecycle_status", "upcoming")
+    .eq("is_wishlisted", true)
+    .ilike("name", `%${escapedQuery}%`)
+    .order("wishlist_rank", { ascending: true })
+    .limit(Math.min(Math.max(limit, 1), 50));
+
+  if (error) {
+    console.error("Could not search the Steam wishlist catalog.", error);
+    return [];
+  }
+
+  return (data ?? []).map(toSteamUpcomingGame);
+}
+
+export async function getSteamWishlistRanks(appIds: number[]) {
+  const uniqueAppIds = [...new Set(appIds)].filter(Number.isInteger);
+  if (!uniqueAppIds.length) return new Map<number, number>();
+
+  const supabase = createPublicCatalogClient();
+  const { data, error } = await supabase
+    .from("steam_games")
+    .select("steam_app_id,wishlist_rank")
+    .eq("is_wishlisted", true)
+    .in("steam_app_id", uniqueAppIds);
+
+  if (error) {
+    console.error("Could not load Steam wishlist ranks.", error);
+    return new Map<number, number>();
+  }
+
+  return new Map(
+    (data ?? []).flatMap((row) =>
+      row.wishlist_rank === null ? [] : [[Number(row.steam_app_id), row.wishlist_rank] as const],
+    ),
+  );
 }
 
 export async function getOpenSteamCatalogGame(steamAppId: number): Promise<{
@@ -39,15 +88,14 @@ export async function getOpenSteamCatalogGame(steamAppId: number): Promise<{
 }> {
   const supabase = createPublicCatalogClient();
   const { data, error } = await supabase
-    .from('steam_games')
+    .from("steam_games")
     .select(CATALOG_FIELDS)
-    .eq('steam_app_id', steamAppId)
-    .eq('lifecycle_status', 'upcoming')
-    .eq('is_wishlisted', true)
+    .eq("steam_app_id", steamAppId)
+    .eq("lifecycle_status", "upcoming")
     .maybeSingle();
 
   if (error) {
-    console.error('Could not validate the Steam catalog game.', error);
+    console.error("Could not validate the Steam catalog game.", error);
     return { catalogAvailable: false, game: null };
   }
 

@@ -1,7 +1,7 @@
 export const STEAM_BET_TARGET_KEYS = [
-  'first_weekend_ccu',
-  'first_month_reviews',
-  'full_price_us',
+  "first_weekend_ccu",
+  "first_month_reviews",
+  "full_price_us",
 ] as const;
 
 export type SteamBetTargetKey = (typeof STEAM_BET_TARGET_KEYS)[number];
@@ -24,6 +24,7 @@ export type SteamUpcomingGame = {
   releaseDate: string;
   releaseLabel: string;
   imageUrl: string;
+  wishlistRank: number | null;
   targets: SteamBetTarget[];
 };
 
@@ -60,34 +61,27 @@ export const STEAM_BET_INPUT_LIMITS = {
   full_price_us: 7,
 } as const satisfies Record<SteamBetTargetKey, number>;
 
-export function sanitizeSteamBetDraft(
-  targetKey: SteamBetTargetKey,
-  rawValue: string,
-) {
+export function sanitizeSteamBetDraft(targetKey: SteamBetTargetKey, rawValue: string) {
   const maxLength = STEAM_BET_INPUT_LIMITS[targetKey];
 
-  if (targetKey !== 'full_price_us') {
-    return rawValue.replace(/\D/g, '').slice(0, maxLength);
+  if (targetKey !== "full_price_us") {
+    return rawValue.replace(/\D/g, "").slice(0, maxLength);
   }
 
-  const normalized = rawValue.replace(',', '.').replace(/[^\d.]/g, '');
-  const dotIndex = normalized.indexOf('.');
-  const valueWithOneDecimalPoint = dotIndex === -1
-    ? normalized
-    : `${normalized.slice(0, dotIndex + 1)}${normalized.slice(dotIndex + 1).replace(/\./g, '')}`;
+  const normalized = rawValue.replace(",", ".").replace(/[^\d.]/g, "");
+  const dotIndex = normalized.indexOf(".");
+  const valueWithOneDecimalPoint =
+    dotIndex === -1
+      ? normalized
+      : `${normalized.slice(0, dotIndex + 1)}${normalized.slice(dotIndex + 1).replace(/\./g, "")}`;
 
   return valueWithOneDecimalPoint.slice(0, maxLength);
 }
 
-export function parseSteamBetDraft(
-  targetKey: SteamBetTargetKey,
-  rawValue: string,
-) {
-  const normalized = rawValue.trim().replace(',', '.');
+export function parseSteamBetDraft(targetKey: SteamBetTargetKey, rawValue: string) {
+  const normalized = rawValue.trim().replace(",", ".");
   const maxLength = STEAM_BET_INPUT_LIMITS[targetKey];
-  const pattern = targetKey === 'full_price_us'
-    ? /^\d+(?:\.\d+)?$/
-    : /^\d+$/;
+  const pattern = targetKey === "full_price_us" ? /^\d+(?:\.\d+)?$/ : /^\d+$/;
 
   if (!normalized || normalized.length > maxLength || !pattern.test(normalized)) {
     return null;
@@ -104,27 +98,27 @@ export function parseSteamBetDraft(
 }
 
 export const STEAM_BET_TARGETS: ReadonlyArray<
-  Omit<SteamBetTarget, 'averageValue' | 'predictionCount' | 'userValue'>
+  Omit<SteamBetTarget, "averageValue" | "predictionCount" | "userValue">
 > = [
   {
-    key: 'first_weekend_ccu',
-    label: 'First weekend peak CCU',
+    key: "first_weekend_ccu",
+    label: "First weekend peak CCU",
     maxLength: STEAM_BET_INPUT_LIMITS.first_weekend_ccu,
     min: 0,
     max: 100_000_000,
     step: 1,
   },
   {
-    key: 'first_month_reviews',
-    label: 'First month total reviews',
+    key: "first_month_reviews",
+    label: "First month total reviews",
     maxLength: STEAM_BET_INPUT_LIMITS.first_month_reviews,
     min: 0,
     max: 100_000_000,
     step: 1,
   },
   {
-    key: 'full_price_us',
-    label: 'Full price in US',
+    key: "full_price_us",
+    label: "Full price in US",
     maxLength: STEAM_BET_INPUT_LIMITS.full_price_us,
     min: 0,
     max: 10_000,
