@@ -444,10 +444,12 @@ export type Database = {
         Row: {
           first_seen_at: string
           image_url: string
+          is_popular_upcoming: boolean
           is_wishlisted: boolean
           last_seen_at: string
           lifecycle_status: string
           name: string
+          popular_upcoming_position: number | null
           pre_release_rank: number | null
           release_date: string | null
           release_label: string
@@ -455,6 +457,7 @@ export type Database = {
           source: string
           source_updated_at: string
           steam_app_id: number
+          steam_data_updated_at: string | null
           updated_at: string
           wishlist_estimate: string | null
           wishlist_rank: number | null
@@ -462,10 +465,12 @@ export type Database = {
         Insert: {
           first_seen_at?: string
           image_url: string
+          is_popular_upcoming?: boolean
           is_wishlisted?: boolean
           last_seen_at?: string
           lifecycle_status?: string
           name: string
+          popular_upcoming_position?: number | null
           pre_release_rank?: number | null
           release_date?: string | null
           release_label?: string
@@ -473,6 +478,7 @@ export type Database = {
           source?: string
           source_updated_at: string
           steam_app_id: number
+          steam_data_updated_at?: string | null
           updated_at?: string
           wishlist_estimate?: string | null
           wishlist_rank?: number | null
@@ -480,10 +486,12 @@ export type Database = {
         Update: {
           first_seen_at?: string
           image_url?: string
+          is_popular_upcoming?: boolean
           is_wishlisted?: boolean
           last_seen_at?: string
           lifecycle_status?: string
           name?: string
+          popular_upcoming_position?: number | null
           pre_release_rank?: number | null
           release_date?: string | null
           release_label?: string
@@ -491,6 +499,7 @@ export type Database = {
           source?: string
           source_updated_at?: string
           steam_app_id?: number
+          steam_data_updated_at?: string | null
           updated_at?: string
           wishlist_estimate?: string | null
           wishlist_rank?: number | null

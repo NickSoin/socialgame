@@ -26,7 +26,7 @@ describe("game catalog search route", () => {
 
     const response = await GET(new Request("http://localhost/api/games/search?q=corsair"));
 
-    expect(mocks.searchSteamCatalogGames).toHaveBeenCalledWith("corsair", 8);
+    expect(mocks.searchSteamCatalogGames).toHaveBeenCalledWith("corsair", 10);
     expect(await response.json()).toEqual({
       games: [
         {

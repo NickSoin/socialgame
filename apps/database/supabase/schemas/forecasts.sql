@@ -83,6 +83,9 @@ CREATE TABLE public.steam_games (
   last_seen_at timestamptz NOT NULL DEFAULT now(),
   released_at timestamptz,
   updated_at timestamptz NOT NULL DEFAULT now(),
+  is_popular_upcoming boolean NOT NULL DEFAULT false,
+  popular_upcoming_position integer,
+  steam_data_updated_at timestamptz,
   CONSTRAINT steam_games_app_id_check CHECK (steam_app_id > 0),
   CONSTRAINT steam_games_name_check CHECK (char_length(name) BETWEEN 1 AND 250),
   CONSTRAINT steam_games_image_url_check CHECK (image_url ~ '^https://'),
@@ -97,6 +100,13 @@ CREATE TABLE public.steam_games (
   CONSTRAINT steam_games_release_state_check CHECK (
     (lifecycle_status = 'upcoming' AND released_at IS NULL)
     OR (lifecycle_status = 'released' AND released_at IS NOT NULL)
+  ),
+  CONSTRAINT steam_games_popular_position_check CHECK (
+    (is_popular_upcoming = false AND popular_upcoming_position IS NULL)
+    OR (
+      is_popular_upcoming = true
+      AND popular_upcoming_position BETWEEN 1 AND 200
+    )
   )
 );
 
@@ -144,6 +154,16 @@ CREATE INDEX steam_games_name_search_idx
 CREATE INDEX steam_games_source_updated_idx
   ON public.steam_games (source_updated_at DESC);
 
+CREATE INDEX steam_games_popular_release_rank_idx
+  ON public.steam_games (
+    release_date ASC NULLS LAST,
+    wishlist_rank ASC NULLS LAST,
+    popular_upcoming_position ASC
+  )
+  WHERE lifecycle_status = 'upcoming'
+    AND is_wishlisted = true
+    AND is_popular_upcoming = true;
+
 CREATE INDEX steam_catalog_sync_runs_started_idx
   ON public.steam_catalog_sync_runs (started_at DESC);
 
@@ -190,7 +210,16 @@ CREATE POLICY steam_bets_insert_own
   ON public.steam_bets
   FOR INSERT
   TO authenticated
-  WITH CHECK ((SELECT auth.uid()) = user_id);
+  WITH CHECK (
+    (SELECT auth.uid()) = user_id
+    AND EXISTS (
+      SELECT 1
+      FROM public.steam_games AS game
+      WHERE game.steam_app_id = steam_bets.steam_app_id
+        AND game.lifecycle_status = 'upcoming'
+        AND game.is_wishlisted = true
+    )
+  );
 
 CREATE POLICY steam_games_public_read
   ON public.steam_games
@@ -362,12 +391,20 @@ AS $$
   SELECT
     bet.steam_app_id,
     count(*) AS bet_count,
-    max(bet.game_name) AS game_name,
-    max(bet.release_date) AS release_date,
-    max(bet.release_label) AS release_label,
-    max(bet.image_url) AS image_url
+    game.name AS game_name,
+    game.release_date::text AS release_date,
+    game.release_label,
+    game.image_url
   FROM public.steam_bets AS bet
-  GROUP BY bet.steam_app_id
+  JOIN public.steam_games AS game ON game.steam_app_id = bet.steam_app_id
+  WHERE game.lifecycle_status = 'upcoming'
+    AND game.is_wishlisted = true
+  GROUP BY
+    bet.steam_app_id,
+    game.name,
+    game.release_date,
+    game.release_label,
+    game.image_url
   ORDER BY count(*) DESC, max(bet.created_at) DESC;
 $$;
 
@@ -389,6 +426,9 @@ AS $$
     avg(bet.value) AS average_value,
     count(*) AS prediction_count
   FROM public.steam_bets AS bet
+  JOIN public.steam_games AS game ON game.steam_app_id = bet.steam_app_id
+  WHERE game.lifecycle_status = 'upcoming'
+    AND game.is_wishlisted = true
   GROUP BY bet.steam_app_id, bet.target_key
   ORDER BY bet.steam_app_id, bet.target_key;
 $$;

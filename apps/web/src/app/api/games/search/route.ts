@@ -12,7 +12,7 @@ export async function GET(request: Request) {
     );
   }
 
-  const games = await searchSteamCatalogGames(query, 8);
+  const games = await searchSteamCatalogGames(query, 10);
   return NextResponse.json(
     {
       games: games.map(({ appId, imageUrl, name, releaseLabel, wishlistRank }) => ({

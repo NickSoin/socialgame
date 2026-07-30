@@ -2,13 +2,13 @@ import 'jsr:@supabase/functions-js/edge-runtime.d.ts';
 import { createClient } from 'npm:@supabase/supabase-js@2.105.4';
 import {
   buildSteamCatalogRows,
-  cleanIsoDate,
   fallbackHeaderImage,
   formatReleaseLabel,
   getTopUpcomingAppIds,
   type SteamAppDetails,
   type WishlistLedgerEntry,
 } from './catalog.ts';
+import { normalizeSteamReleaseDate } from '../_shared/steam-release-date.ts';
 
 const SOURCE_META_URL =
   'https://nicksoin.github.io/SteamTopWishlistsRank/v2/meta.json';
@@ -82,15 +82,6 @@ Deno.serve(async (request) => {
       .maybeSingle();
 
     if (previousRunError) throw previousRunError;
-    if (previousRun?.status === 'success') {
-      return Response.json({
-        status: 'unchanged',
-        sourceUpdatedAt,
-        currentCount: previousRun.current_count,
-        releasedCount: previousRun.released_count,
-      });
-    }
-
     if (
       previousRun?.status === 'running' &&
       Date.now() - new Date(previousRun.started_at).valueOf() < RUNNING_LOCK_MS
@@ -172,10 +163,21 @@ Deno.serve(async (request) => {
 
     const { error: staleError } = await supabase
       .from('steam_games')
-      .update({ is_wishlisted: false })
+      .update({
+        is_wishlisted: false,
+        is_popular_upcoming: false,
+        popular_upcoming_position: null,
+      })
       .eq('lifecycle_status', 'upcoming')
       .lt('source_updated_at', sourceUpdatedAt);
     if (staleError) throw staleError;
+
+    const { error: releasedPopularError } = await supabase
+      .from('steam_games')
+      .update({ is_popular_upcoming: false, popular_upcoming_position: null })
+      .eq('lifecycle_status', 'released')
+      .eq('is_popular_upcoming', true);
+    if (releasedPopularError) throw releasedPopularError;
 
     const currentCount = rows.filter(
       (row) => row.lifecycle_status === 'upcoming' && row.is_wishlisted,
@@ -236,7 +238,7 @@ async function fetchSteamAppDetails(appId: number): Promise<SteamAppDetails | nu
     const app = payload[String(appId)];
     if (!app?.success || !app.data) return null;
 
-    const releaseDate = normalizeSteamDate(app.data.release_date?.date);
+    const releaseDate = normalizeSteamReleaseDate(app.data.release_date?.date);
     return {
       imageUrl:
         trustedImageUrl(app.data.header_image) ??
@@ -333,16 +335,6 @@ async function mapWithConcurrency<T, R>(
   );
 
   return results;
-}
-
-function normalizeSteamDate(value: unknown) {
-  if (typeof value !== 'string') return null;
-  const trimmed = value.trim();
-  const iso = cleanIsoDate(trimmed);
-  if (iso) return iso;
-
-  const date = new Date(`${trimmed} 00:00:00 UTC`);
-  return Number.isNaN(date.valueOf()) ? null : date.toISOString().slice(0, 10);
 }
 
 function trustedImageUrl(value: unknown) {

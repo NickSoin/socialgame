@@ -68,7 +68,7 @@ $$;
 GRANT EXECUTE ON FUNCTION tests.set_user_context(uuid) TO authenticated;
 GRANT EXECUTE ON FUNCTION tests.clear_user_context() TO anon, authenticated;
 
-SELECT plan(118);
+SELECT plan(124);
 
 -- =============================================================================
 -- Schema, RLS, grants, and RPC shape
@@ -93,6 +93,9 @@ SELECT has_column('public', 'steam_bets', 'image_url', 'Steam bets preserve artw
 SELECT has_column('public', 'steam_games', 'wishlist_rank', 'Steam games preserve wishlist rank');
 SELECT has_column('public', 'steam_games', 'lifecycle_status', 'Steam games preserve release state');
 SELECT has_column('public', 'steam_games', 'source_updated_at', 'Steam games preserve source freshness');
+SELECT has_column('public', 'steam_games', 'is_popular_upcoming', 'Steam games store Popular Upcoming membership');
+SELECT has_column('public', 'steam_games', 'popular_upcoming_position', 'Steam games store Steam popularity position');
+SELECT has_column('public', 'steam_games', 'steam_data_updated_at', 'Steam games store Steam refresh time');
 SELECT ok(to_regclass('public.leaderboard') IS NOT NULL, 'leaderboard view exists');
 
 SELECT ok(
@@ -996,6 +999,88 @@ SELECT is(
 RESET ROLE;
 SELECT tests.clear_user_context();
 
+INSERT INTO public.steam_games (
+  steam_app_id,
+  name,
+  image_url,
+  release_date,
+  release_label,
+  lifecycle_status,
+  wishlist_rank,
+  pre_release_rank,
+  is_wishlisted,
+  source_updated_at,
+  is_popular_upcoming,
+  popular_upcoming_position,
+  steam_data_updated_at
+)
+VALUES
+  (
+    4739040,
+    'DISCIPLINE SIMULATOR',
+    'https://shared.fastly.steamstatic.com/store_item_assets/steam/apps/4739040/header.jpg',
+    NULL,
+    'TBA',
+    'upcoming',
+    7,
+    7,
+    true,
+    now(),
+    true,
+    15,
+    now()
+  ),
+  (
+    9990001,
+    'Removed Wishlist Game',
+    'https://shared.fastly.steamstatic.com/store_item_assets/steam/apps/9990001/header.jpg',
+    NULL,
+    'TBA',
+    'upcoming',
+    NULL,
+    900,
+    false,
+    now(),
+    false,
+    NULL,
+    now()
+  )
+ON CONFLICT (steam_app_id) DO UPDATE
+SET
+  name = EXCLUDED.name,
+  image_url = EXCLUDED.image_url,
+  release_date = EXCLUDED.release_date,
+  release_label = EXCLUDED.release_label,
+  lifecycle_status = EXCLUDED.lifecycle_status,
+  wishlist_rank = EXCLUDED.wishlist_rank,
+  pre_release_rank = EXCLUDED.pre_release_rank,
+  is_wishlisted = EXCLUDED.is_wishlisted,
+  source_updated_at = EXCLUDED.source_updated_at,
+  is_popular_upcoming = EXCLUDED.is_popular_upcoming,
+  popular_upcoming_position = EXCLUDED.popular_upcoming_position,
+  steam_data_updated_at = EXCLUDED.steam_data_updated_at;
+
+INSERT INTO public.steam_bets (
+  user_id,
+  steam_app_id,
+  target_key,
+  value,
+  game_name,
+  release_date,
+  release_label,
+  image_url
+)
+VALUES (
+  '91111111-1111-4111-8111-111111111111',
+  9990001,
+  'first_month_reviews',
+  10,
+  'Removed Wishlist Game',
+  '2030-01-01',
+  'January 1',
+  'https://shared.fastly.steamstatic.com/store_item_assets/steam/apps/9990001/header.jpg'
+);
+
 SET LOCAL ROLE authenticated;
 SELECT tests.set_user_context('91111111-1111-4111-8111-111111111111');
 SELECT lives_ok(
@@ -1078,6 +1163,18 @@ SELECT throws_ok(
   NULL,
   'a user cannot create a Steam bet for another account'
 );
+SELECT throws_ok(
+  $$INSERT INTO public.steam_bets (user_id, steam_app_id, target_key, value)
+    VALUES (
+      '92222222-2222-4222-8222-222222222222',
+      9990001,
+      'full_price_us',
+      20
+    )$$,
+  '42501',
+  NULL,
+  'a user cannot create a Steam bet for a game outside TopWishlisted'
+);
 
 RESET ROLE;
 SELECT tests.clear_user_context();
@@ -1091,6 +1188,24 @@ SELECT cmp_ok(
   '>=',
   2::bigint,
   'trending exposes aggregate bet counts without user positions'
+);
+SELECT is(
+  (
+    SELECT release_label
+    FROM public.get_steam_bet_trends()
+    WHERE steam_app_id = 4739040
+  ),
+  'TBA'::text,
+  'trending reads the canonical catalog date instead of a bet snapshot'
+);
+SELECT is(
+  (
+    SELECT count(*)::integer
+    FROM public.get_steam_bet_trends()
+    WHERE steam_app_id = 9990001
+  ),
+  0,
+  'trending excludes bets for games outside TopWishlisted'
 );
 RESET ROLE;
 SELECT tests.clear_user_context();

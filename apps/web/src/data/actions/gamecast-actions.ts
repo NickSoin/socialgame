@@ -10,7 +10,7 @@ import {
   STEAM_BET_INPUT_LIMITS,
   STEAM_BET_TARGET_KEYS,
 } from '@/lib/steam-bets';
-import { getOpenSteamGameByAppId } from '@/data/steam-popular-upcoming';
+import { getOpenSteamCatalogGame } from '@/data/steam-game-catalog';
 import { publicNicknameSchema } from '@/lib/public-nickname';
 
 const outcomeSchema = z.enum(['yes', 'no']);
@@ -31,7 +31,7 @@ export const placeSteamBetAction = authActionClient
       );
     }
 
-    const game = await getOpenSteamGameByAppId(parsedInput.steamAppId);
+    const { game } = await getOpenSteamCatalogGame(parsedInput.steamAppId);
     if (!game) throw new Error('This game is no longer open for predictions.');
 
     const supabase = await createSupabaseClient();

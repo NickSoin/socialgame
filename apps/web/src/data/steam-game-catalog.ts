@@ -33,6 +33,49 @@ export async function getSteamCatalogGames(limit = 200): Promise<SteamUpcomingGa
   return (data ?? []).map(toSteamUpcomingGame);
 }
 
+export async function getSteamPopularUpcomingGames(
+  limit = 200,
+): Promise<SteamUpcomingGame[] | null> {
+  const supabase = createPublicCatalogClient();
+  const { data, error } = await supabase
+    .from("steam_games")
+    .select(CATALOG_FIELDS)
+    .eq("lifecycle_status", "upcoming")
+    .eq("is_wishlisted", true)
+    .eq("is_popular_upcoming", true)
+    .order("release_date", { ascending: true, nullsFirst: false })
+    .order("wishlist_rank", { ascending: true, nullsFirst: false })
+    .order("popular_upcoming_position", { ascending: true })
+    .limit(Math.min(Math.max(limit, 1), 200));
+
+  if (error) {
+    console.error("Could not load the stored Steam popular upcoming catalog.", error);
+    return null;
+  }
+
+  return (data ?? []).map(toSteamUpcomingGame);
+}
+
+export async function getSteamCatalogGamesByIds(appIds: number[]) {
+  const uniqueAppIds = [...new Set(appIds)].filter(Number.isInteger).slice(0, 500);
+  if (!uniqueAppIds.length) return [];
+
+  const supabase = createPublicCatalogClient();
+  const { data, error } = await supabase
+    .from("steam_games")
+    .select(CATALOG_FIELDS)
+    .eq("lifecycle_status", "upcoming")
+    .eq("is_wishlisted", true)
+    .in("steam_app_id", uniqueAppIds);
+
+  if (error) {
+    console.error("Could not load games from the Steam wishlist catalog.", error);
+    return [];
+  }
+
+  return (data ?? []).map(toSteamUpcomingGame);
+}
+
 export async function searchSteamCatalogGames(
   query: string,
   limit = 20,
@@ -92,6 +135,7 @@ export async function getOpenSteamCatalogGame(steamAppId: number): Promise<{
     .select(CATALOG_FIELDS)
     .eq("steam_app_id", steamAppId)
     .eq("lifecycle_status", "upcoming")
+    .eq("is_wishlisted", true)
     .maybeSingle();
 
   if (error) {

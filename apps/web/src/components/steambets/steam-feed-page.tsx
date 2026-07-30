@@ -7,12 +7,8 @@ import {
   getSteamBetTrends,
 } from "@/data/steam-bets";
 import { getSteamPopularUpcoming } from "@/data/steam-popular-upcoming";
-import { getSteamWishlistRanks, searchSteamCatalogGames } from "@/data/steam-game-catalog";
-import {
-  buildSteamFeed,
-  sortPopularUpcomingGames,
-  type SteamFeedMode,
-} from "@/lib/steam-feed";
+import { getSteamCatalogGamesByIds, searchSteamCatalogGames } from "@/data/steam-game-catalog";
+import { buildSteamFeed, type SteamFeedMode } from "@/lib/steam-feed";
 
 const TITLES: Record<SteamFeedMode, string> = {
   upcoming: "Popular upcoming Steam games",
@@ -29,10 +25,7 @@ export async function SteamFeedPage({
 }) {
   const { q = "" } = await searchParams;
   const searchQuery = q.trim();
-  const [liveGames, userState, summaries, trends] = await Promise.all([
-    mode === "upcoming" && searchQuery
-      ? searchSteamCatalogGames(searchQuery, 50)
-      : getSteamPopularUpcoming(),
+  const [userState, summaries, trends] = await Promise.all([
     getCurrentUserSteamBets(),
     getSteamBetSummaries().catch((error: unknown) => {
       console.error("Could not load Steam bet summaries.", error);
@@ -48,6 +41,17 @@ export async function SteamFeedPage({
 
   if (mode === "involved" && !userState.isAuthenticated) redirect("/login?next=/involved");
 
+  const liveGames =
+    mode === "upcoming"
+      ? searchQuery
+        ? await searchSteamCatalogGames(searchQuery, 50)
+        : await getSteamPopularUpcoming()
+      : await getSteamCatalogGamesByIds(
+          mode === "trending"
+            ? trends.map((trend) => trend.steam_app_id)
+            : userState.bets.map((bet) => bet.steam_app_id),
+        );
+
   const query = searchQuery.toLocaleLowerCase("en-US");
   const feed = buildSteamFeed({
     mode,
@@ -56,12 +60,7 @@ export async function SteamFeedPage({
     summaries,
     trends,
   }).filter((game) => !query || game.name.toLocaleLowerCase("en-US").includes(query));
-  const wishlistRanks = await getSteamWishlistRanks(feed.map((game) => game.appId));
-  const rankedGames = feed.map((game) => ({
-    ...game,
-    wishlistRank: wishlistRanks.get(game.appId) ?? game.wishlistRank,
-  }));
-  const games = mode === "upcoming" ? sortPopularUpcomingGames(rankedGames) : rankedGames;
+  const games = feed;
 
   return (
     <div className="sb-shell sb-page">

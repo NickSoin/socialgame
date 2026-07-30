@@ -84,5 +84,5 @@ verify_jwt = false
 [functions.steam-artwork]
 verify_jwt = false
 
-[functions.steam-popular-upcoming]
+[functions.sync-steam-popular]
 verify_jwt = false
