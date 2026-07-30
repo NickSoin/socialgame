@@ -45,6 +45,10 @@ export async function generateMetadata(): Promise<Metadata> {
       template: '%s · NextHit Market',
     },
     description: 'Forecast upcoming Steam games.',
+    icons: {
+      icon: [{ url: '/favicon.svg', type: 'image/svg+xml' }],
+      shortcut: '/favicon.svg',
+    },
     openGraph: {
       title: 'NextHit Market — Steam forecasts',
       description: 'Forecast upcoming Steam games.',
