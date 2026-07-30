@@ -18,10 +18,26 @@ const compactNumber = new Intl.NumberFormat('en-US', {
   maximumFractionDigits: 1,
   notation: 'compact',
 });
-const STEAM_CAPSULE_ASPECT_RATIO = 231 / 87;
+const STEAM_GAME_HERO_ASPECT_RATIO = 460 / 215;
+
+function currentSteamArtworkUrl(appId: number) {
+  const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
+
+  try {
+    if (supabaseUrl && new URL(supabaseUrl).hostname.endsWith('.supabase.co')) {
+      const resolverUrl = new URL('/functions/v1/steam-artwork', supabaseUrl);
+      resolverUrl.searchParams.set('appId', String(appId));
+      return resolverUrl.toString();
+    }
+  } catch {
+    // Use the local route when the configured URL is absent or malformed.
+  }
+
+  return `/api/steam-artwork/${appId}`;
+}
 
 function useCurrentSteamArtwork(image: HTMLImageElement, appId: number) {
-  const fallbackUrl = `/api/steam-artwork/${appId}`;
+  const fallbackUrl = currentSteamArtworkUrl(appId);
   if (image.getAttribute('src') !== fallbackUrl) image.setAttribute('src', fallbackUrl);
 }
 
@@ -36,10 +52,50 @@ function ensureCurrentSteamArtwork(
   if (
     !image.naturalWidth ||
     !image.naturalHeight ||
-    Math.abs(loadedAspectRatio - STEAM_CAPSULE_ASPECT_RATIO) > 0.03
+    Math.abs(loadedAspectRatio - STEAM_GAME_HERO_ASPECT_RATIO) > 0.03
   ) {
     useCurrentSteamArtwork(image, appId);
   }
+}
+
+function GameHero({ game, priority }: { game: SteamUpcomingGame; priority: boolean }) {
+  const artworkRef = useRef<HTMLImageElement>(null);
+
+  useEffect(() => {
+    const image = artworkRef.current;
+    if (!image) return;
+
+    const checkArtwork = () => ensureCurrentSteamArtwork(image, game.appId);
+    checkArtwork();
+    image.addEventListener('load', checkArtwork);
+    image.addEventListener('error', checkArtwork);
+    return () => {
+      image.removeEventListener('load', checkArtwork);
+      image.removeEventListener('error', checkArtwork);
+    };
+  }, [game.appId, game.imageUrl]);
+
+  return (
+    <div className="sb-game-card__image">
+      {/* eslint-disable-next-line @next/next/no-img-element */}
+      <img
+        alt={`${game.name} artwork`}
+        decoding="async"
+        fetchPriority={priority ? 'high' : 'auto'}
+        height={215}
+        loading={priority ? 'eager' : 'lazy'}
+        onError={(event) => {
+          useCurrentSteamArtwork(event.currentTarget, game.appId);
+        }}
+        onLoad={(event) => {
+          ensureCurrentSteamArtwork(event.currentTarget, game.appId, true);
+        }}
+        ref={artworkRef}
+        src={game.imageUrl}
+        width={460}
+      />
+    </div>
+  );
 }
 
 function formatAverage(value: number | null) {
@@ -127,11 +183,11 @@ function ForecastField({
       </div>
       {mode === 'editing' && (
         <button
-          className="sb-make-bet"
+          className="sb-bet-approve"
           disabled={!isValid || status === 'executing'}
           type="submit"
         >
-          {status === 'executing' ? 'Saving…' : 'Make bet'}
+          {status === 'executing' ? 'Saving…' : 'Approve'}
         </button>
       )}
       {errorMessage && (
@@ -150,43 +206,9 @@ export function ForecastCard({
   isAuthenticated: boolean;
   priority?: boolean;
 }) {
-  const artworkRef = useRef<HTMLImageElement>(null);
-
-  useEffect(() => {
-    const image = artworkRef.current;
-    if (!image) return;
-
-    const checkArtwork = () => ensureCurrentSteamArtwork(image, game.appId);
-    checkArtwork();
-    image.addEventListener('load', checkArtwork);
-    image.addEventListener('error', checkArtwork);
-    return () => {
-      image.removeEventListener('load', checkArtwork);
-      image.removeEventListener('error', checkArtwork);
-    };
-  }, [game.appId, game.imageUrl]);
-
   return (
     <article className="sb-game-card">
-      <div className="sb-game-card__image">
-        {/* eslint-disable-next-line @next/next/no-img-element */}
-        <img
-          alt={`${game.name} artwork`}
-          decoding="async"
-          fetchPriority={priority ? 'high' : 'auto'}
-          height={87}
-          loading={priority ? 'eager' : 'lazy'}
-          onError={(event) => {
-            useCurrentSteamArtwork(event.currentTarget, game.appId);
-          }}
-          onLoad={(event) => {
-            ensureCurrentSteamArtwork(event.currentTarget, game.appId, true);
-          }}
-          ref={artworkRef}
-          src={game.imageUrl}
-          width={231}
-        />
-      </div>
+      <GameHero game={game} priority={priority} />
       <div className="sb-game-card__content">
         <header className="sb-game-card__header">
           <h2>{game.name}</h2>

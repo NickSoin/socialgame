@@ -51,13 +51,13 @@ describe('ForecastCard', () => {
     expect(artwork.getAttribute('src')).toBe('/api/steam-artwork/42');
   });
 
-  it('replaces a legacy Steam header image with the current capsule artwork', () => {
+  it('replaces a legacy Steam capsule image with the current GameHero artwork', () => {
     render(<ForecastCard game={game} isAuthenticated />);
 
     const artwork = screen.getByRole('img', { name: 'Input Limit Test artwork' });
     Object.defineProperties(artwork, {
-      naturalWidth: { configurable: true, value: 460 },
-      naturalHeight: { configurable: true, value: 215 },
+      naturalWidth: { configurable: true, value: 231 },
+      naturalHeight: { configurable: true, value: 87 },
     });
     fireEvent.load(artwork);
 
@@ -66,21 +66,21 @@ describe('ForecastCard', () => {
 
   it('replaces a legacy image that finished loading before hydration', () => {
     vi.spyOn(HTMLImageElement.prototype, 'complete', 'get').mockReturnValue(true);
-    vi.spyOn(HTMLImageElement.prototype, 'naturalWidth', 'get').mockReturnValue(460);
-    vi.spyOn(HTMLImageElement.prototype, 'naturalHeight', 'get').mockReturnValue(215);
+    vi.spyOn(HTMLImageElement.prototype, 'naturalWidth', 'get').mockReturnValue(231);
+    vi.spyOn(HTMLImageElement.prototype, 'naturalHeight', 'get').mockReturnValue(87);
 
     render(<ForecastCard game={game} isAuthenticated />);
 
-    expect(
-      screen.getByRole('img', { name: 'Input Limit Test artwork' }).getAttribute('src'),
-    ).toBe('/api/steam-artwork/42');
+    expect(screen.getByRole('img', { name: 'Input Limit Test artwork' }).getAttribute('src')).toBe(
+      '/api/steam-artwork/42',
+    );
   });
 
   it('enforces the target-specific character limits while typing', () => {
     render(<ForecastCard game={game} isAuthenticated />);
 
     const ccu = screen.getByRole('textbox', {
-      name: 'First weekend top CCU for Input Limit Test',
+      name: 'First weekend peak CCU for Input Limit Test',
     }) as HTMLInputElement;
     const reviews = screen.getByRole('textbox', {
       name: 'First month total reviews for Input Limit Test',
@@ -106,11 +106,11 @@ describe('ForecastCard', () => {
     render(<ForecastCard game={game} isAuthenticated />);
 
     const ccu = screen.getByRole('textbox', {
-      name: 'First weekend top CCU for Input Limit Test',
+      name: 'First weekend peak CCU for Input Limit Test',
     });
     fireEvent.focus(ccu);
     fireEvent.change(ccu, { target: { value: '12345678' } });
-    fireEvent.click(screen.getAllByRole('button', { name: 'Make bet' })[0]);
+    fireEvent.click(screen.getAllByRole('button', { name: 'Approve' })[0]);
 
     expect(mocks.execute).toHaveBeenCalledWith({
       steamAppId: 42,

@@ -240,8 +240,8 @@ async function fetchSteamAppDetails(appId: number): Promise<SteamAppDetails | nu
     const releaseDate = normalizeSteamDate(app.data.release_date?.date);
     return {
       imageUrl:
-        trustedImageUrl(app.data.capsule_image) ??
         trustedImageUrl(app.data.header_image) ??
+        trustedImageUrl(app.data.capsule_image) ??
         fallbackHeaderImage(appId),
       releaseDate,
       releaseLabel: releaseDate ? formatReleaseLabel(releaseDate) : 'TBA',

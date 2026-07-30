@@ -80,3 +80,6 @@ url = ""
 
 [functions.sync-steam-catalog]
 verify_jwt = false
+
+[functions.steam-artwork]
+verify_jwt = false

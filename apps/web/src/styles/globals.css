@@ -336,15 +336,15 @@ button:disabled { cursor: default; }
   padding-top: 24px;
   padding-bottom: 64px;
 }
-.sb-game-feed { width: 80%; }
-.sb-game-list { display: grid; gap: 18px; }
+.sb-game-feed { width: 72%; }
+.sb-game-list { display: grid; gap: 28px; }
 .sb-game-card {
   position: relative;
   display: grid;
-  grid-template-columns: 35% minmax(0, 65%);
+  grid-template-columns: 34% minmax(0, 66%);
   min-width: 0;
   padding: 0;
-  overflow: hidden;
+  overflow: visible;
   border: 1px solid var(--border);
   border-radius: 28px;
   background: #fff;
@@ -355,8 +355,9 @@ button:disabled { cursor: default; }
 .sb-game-card__image {
   align-self: start;
   width: 100%;
-  aspect-ratio: 231 / 87;
+  aspect-ratio: 460 / 215;
   overflow: hidden;
+  border-radius: 27px 0 0 27px;
   background: #e9eaec;
 }
 .sb-game-card__image img {
@@ -412,14 +413,14 @@ button:disabled { cursor: default; }
 .sb-forecast-field {
   position: relative;
   display: grid;
-  grid-template-rows: 24px 50px;
+  grid-template-rows: 24px 40px;
   align-content: start;
   gap: 6px;
   min-width: 0;
   margin: 0;
   padding: 9px 10px;
   border: 1px solid var(--border);
-  border-radius: 5px;
+  border-radius: 10px;
   background: #fff;
   text-align: left;
 }
@@ -436,7 +437,7 @@ button:disabled { cursor: default; }
 }
 .sb-forecast-field__body {
   display: grid;
-  grid-template-columns: minmax(70px, 1fr) 64px;
+  grid-template-columns: minmax(70px, 110px) 64px;
   align-items: center;
   gap: 8px;
   min-width: 0;
@@ -445,11 +446,11 @@ button:disabled { cursor: default; }
   display: flex;
   align-items: center;
   width: 100%;
-  max-width: 145px;
-  height: 50px;
+  max-width: 110px;
+  height: 40px;
   overflow: hidden;
   border: 1px solid #d5d8dc;
-  border-radius: 2px;
+  border-radius: 4px;
   background: var(--muted);
 }
 .is-editing .sb-forecast-input { background: #e9f8ed; }
@@ -488,7 +489,7 @@ button:disabled { cursor: default; }
   line-height: 1.15;
   white-space: nowrap;
 }
-.sb-make-bet {
+.sb-bet-approve {
   position: absolute;
   left: 50%;
   bottom: -27px;
@@ -505,9 +506,9 @@ button:disabled { cursor: default; }
   line-height: 1;
   white-space: nowrap;
 }
-.sb-make-bet:hover:not(:disabled) { background: var(--accent-hover); color: #fff; }
-.sb-make-bet:focus-visible { outline: 3px solid #a9bdff; outline-offset: 2px; }
-.sb-make-bet:disabled { opacity: .55; }
+.sb-bet-approve:hover:not(:disabled) { background: var(--accent-hover); color: #fff; }
+.sb-bet-approve:focus-visible { outline: 3px solid #a9bdff; outline-offset: 2px; }
+.sb-bet-approve:disabled { opacity: .55; }
 .sb-forecast-error {
   position: absolute;
   top: calc(100% + 42px);

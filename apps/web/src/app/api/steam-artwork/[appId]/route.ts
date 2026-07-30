@@ -30,6 +30,44 @@ function trustedSteamImageUrl(value: unknown) {
   }
 }
 
+async function resolveFromSupabase(appId: number) {
+  const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
+  if (!supabaseUrl) return null;
+
+  const resolverUrl = new URL('/functions/v1/steam-artwork', supabaseUrl);
+  if (!resolverUrl.hostname.endsWith('.supabase.co')) return null;
+  resolverUrl.searchParams.set('appId', String(appId));
+
+  const response = await fetch(resolverUrl, {
+    cache: 'force-cache',
+    redirect: 'manual',
+  });
+  if (response.status !== 307) {
+    throw new Error(`Supabase artwork resolver returned ${response.status}`);
+  }
+
+  return trustedSteamImageUrl(response.headers.get('location'));
+}
+
+async function resolveFromSteam(appId: number) {
+  const detailsUrl = new URL('https://store.steampowered.com/api/appdetails');
+  detailsUrl.searchParams.set('appids', String(appId));
+  detailsUrl.searchParams.set('cc', 'us');
+  detailsUrl.searchParams.set('l', 'english');
+
+  const response = await fetch(detailsUrl, {
+    cache: 'force-cache',
+    headers: { accept: 'application/json' },
+  });
+  if (!response.ok) throw new Error(`Steam returned ${response.status}`);
+
+  const payload = (await response.json()) as SteamAppDetailsResponse;
+  const app = payload[String(appId)];
+  return (
+    trustedSteamImageUrl(app?.data?.header_image) ?? trustedSteamImageUrl(app?.data?.capsule_image)
+  );
+}
+
 export async function GET(_request: Request, { params }: { params: Promise<{ appId: string }> }) {
   const { appId: rawAppId } = await params;
   const appId = Number(rawAppId);
@@ -38,23 +76,8 @@ export async function GET(_request: Request, { params }: { params: Promise<{ app
     return new Response('Invalid Steam app id', { status: 400 });
   }
 
-  const detailsUrl = new URL('https://store.steampowered.com/api/appdetails');
-  detailsUrl.searchParams.set('appids', String(appId));
-  detailsUrl.searchParams.set('cc', 'us');
-  detailsUrl.searchParams.set('l', 'english');
-
   try {
-    const response = await fetch(detailsUrl, {
-      cache: 'force-cache',
-      headers: { accept: 'application/json' },
-    });
-    if (!response.ok) throw new Error(`Steam returned ${response.status}`);
-
-    const payload = (await response.json()) as SteamAppDetailsResponse;
-    const app = payload[String(appId)];
-    const imageUrl =
-      trustedSteamImageUrl(app?.data?.capsule_image) ??
-      trustedSteamImageUrl(app?.data?.header_image);
+    const imageUrl = (await resolveFromSupabase(appId)) ?? (await resolveFromSteam(appId));
     if (!imageUrl) return new Response('Steam artwork not found', { status: 404 });
 
     return new Response(null, {

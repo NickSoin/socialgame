@@ -108,7 +108,7 @@ export const STEAM_BET_TARGETS: ReadonlyArray<
 > = [
   {
     key: 'first_weekend_ccu',
-    label: 'First weekend top CCU',
+    label: 'First weekend peak CCU',
     maxLength: STEAM_BET_INPUT_LIMITS.first_weekend_ccu,
     min: 0,
     max: 100_000_000,
