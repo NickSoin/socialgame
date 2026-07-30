@@ -9,9 +9,11 @@ export type SteamBetTargetKey = (typeof STEAM_BET_TARGET_KEYS)[number];
 export type SteamBetTarget = {
   key: SteamBetTargetKey;
   label: string;
+  averageValue: number | null;
   maxLength: number;
   min: number;
   max: number;
+  predictionCount: number;
   step: number;
   userValue: number | null;
 };
@@ -43,6 +45,13 @@ export type SteamBetTrend = {
   release_date: string | null;
   release_label: string | null;
   image_url: string | null;
+};
+
+export type SteamBetSummary = {
+  steam_app_id: number;
+  target_key: SteamBetTargetKey;
+  average_value: number;
+  prediction_count: number;
 };
 
 export const STEAM_BET_INPUT_LIMITS = {
@@ -94,7 +103,9 @@ export function parseSteamBetDraft(
   return value;
 }
 
-export const STEAM_BET_TARGETS: ReadonlyArray<Omit<SteamBetTarget, 'userValue'>> = [
+export const STEAM_BET_TARGETS: ReadonlyArray<
+  Omit<SteamBetTarget, 'averageValue' | 'predictionCount' | 'userValue'>
+> = [
   {
     key: 'first_weekend_ccu',
     label: 'First weekend top CCU',

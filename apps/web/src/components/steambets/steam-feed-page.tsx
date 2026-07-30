@@ -1,7 +1,11 @@
 import Link from 'next/link';
 import { redirect } from 'next/navigation';
 import { ForecastFeed } from '@/components/steambets/forecast-feed';
-import { getCurrentUserSteamBets, getSteamBetTrends } from '@/data/steam-bets';
+import {
+  getCurrentUserSteamBets,
+  getSteamBetSummaries,
+  getSteamBetTrends,
+} from '@/data/steam-bets';
 import { getSteamPopularUpcoming } from '@/data/steam-popular-upcoming';
 import { buildSteamFeed, type SteamFeedMode } from '@/lib/steam-feed';
 
@@ -18,10 +22,14 @@ export async function SteamFeedPage({
   mode: SteamFeedMode;
   searchParams: Promise<{ q?: string }>;
 }) {
-  const [{ q = '' }, liveGames, userState, trends] = await Promise.all([
+  const [{ q = '' }, liveGames, userState, summaries, trends] = await Promise.all([
     searchParams,
     getSteamPopularUpcoming(),
     getCurrentUserSteamBets(),
+    getSteamBetSummaries().catch((error: unknown) => {
+      console.error('Could not load Steam bet summaries.', error);
+      return [];
+    }),
     mode === 'trending'
       ? getSteamBetTrends().catch((error: unknown) => {
           console.error('Could not load trending Steam games.', error);
@@ -37,6 +45,7 @@ export async function SteamFeedPage({
     mode,
     liveGames,
     bets: userState.bets,
+    summaries,
     trends,
   }).filter((game) => !query || game.name.toLocaleLowerCase('en-US').includes(query));
 

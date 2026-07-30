@@ -1,6 +1,7 @@
 import {
   STEAM_BET_TARGETS,
   type SteamBetRow,
+  type SteamBetSummary,
   type SteamBetTrend,
   type SteamUpcomingGame,
 } from './steam-bets';
@@ -15,7 +16,12 @@ function fromSnapshot(row: SteamBetRow | SteamBetTrend): SteamUpcomingGame | nul
     releaseDate: row.release_date,
     releaseLabel: row.release_label,
     imageUrl: row.image_url,
-    targets: STEAM_BET_TARGETS.map((target) => ({ ...target, userValue: null })),
+    targets: STEAM_BET_TARGETS.map((target) => ({
+      ...target,
+      averageValue: null,
+      predictionCount: 0,
+      userValue: null,
+    })),
   };
 }
 
@@ -23,11 +29,13 @@ export function buildSteamFeed({
   mode,
   liveGames,
   bets,
+  summaries = [],
   trends,
 }: {
   mode: SteamFeedMode;
   liveGames: SteamUpcomingGame[];
   bets: SteamBetRow[];
+  summaries?: SteamBetSummary[];
   trends: SteamBetTrend[];
 }): SteamUpcomingGame[] {
   const games = new Map(liveGames.map((game) => [game.appId, game]));
@@ -53,6 +61,12 @@ export function buildSteamFeed({
   const betValues = new Map(
     bets.map((bet) => [`${bet.steam_app_id}:${bet.target_key}`, bet.value]),
   );
+  const summaryValues = new Map(
+    summaries.map((summary) => [
+      `${summary.steam_app_id}:${summary.target_key}`,
+      summary,
+    ]),
+  );
   const involvedIds = new Set(bets.map((bet) => bet.steam_app_id));
   const trendCounts = new Map(trends.map((trend) => [trend.steam_app_id, trend.bet_count]));
 
@@ -66,6 +80,10 @@ export function buildSteamFeed({
     ...game,
     targets: game.targets.map((target) => ({
       ...target,
+      averageValue:
+        summaryValues.get(`${game.appId}:${target.key}`)?.average_value ?? null,
+      predictionCount:
+        summaryValues.get(`${game.appId}:${target.key}`)?.prediction_count ?? 0,
       userValue: betValues.get(`${game.appId}:${target.key}`) ?? null,
     })),
   }));

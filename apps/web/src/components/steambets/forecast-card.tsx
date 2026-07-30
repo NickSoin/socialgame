@@ -2,6 +2,7 @@
 
 import { useRef, useState } from 'react';
 import { useAction } from 'next-safe-action/hooks';
+import { ChevronDown } from 'lucide-react';
 import { placeSteamBetAction } from '@/data/actions/gamecast-actions';
 import type {
   SteamBetTarget,
@@ -13,6 +14,17 @@ import {
 } from '@/lib/steam-bets';
 
 type ForecastFieldMode = 'idle' | 'editing' | 'committed';
+
+const compactNumber = new Intl.NumberFormat('en-US', {
+  maximumFractionDigits: 1,
+  notation: 'compact',
+});
+
+function formatAverage(value: number | null) {
+  if (value === null || !Number.isFinite(value)) return '—';
+  if (Math.abs(value) >= 1000) return compactNumber.format(value);
+  return new Intl.NumberFormat('en-US', { maximumFractionDigits: 2 }).format(value);
+}
 
 function ForecastField({
   appId,
@@ -63,27 +75,33 @@ function ForecastField({
       }}
     >
       <label htmlFor={inputId}>{target.label}</label>
-      <div className="sb-forecast-input">
-        <input
-          id={inputId}
-          aria-label={`${target.label} for ${gameName}`}
-          aria-readonly={mode === 'committed'}
-          autoComplete="off"
-          disabled={!isAuthenticated}
-          inputMode={target.step === 1 ? 'numeric' : 'decimal'}
-          maxLength={target.maxLength}
-          name={`${appId}-${target.key}`}
-          pattern={target.step === 1 ? '[0-9]*' : '[0-9]+([.][0-9]+)?'}
-          readOnly={mode === 'committed'}
-          type="text"
-          value={draft}
-          onChange={(event) => {
-            setDraft(sanitizeSteamBetDraft(target.key, event.target.value));
-          }}
-          onFocus={() => {
-            if (mode === 'idle' && isAuthenticated) setMode('editing');
-          }}
-        />
+      <div className="sb-forecast-field__body">
+        <div className="sb-forecast-input">
+          <input
+            id={inputId}
+            aria-label={`${target.label} for ${gameName}`}
+            aria-readonly={mode === 'committed'}
+            autoComplete="off"
+            disabled={!isAuthenticated}
+            inputMode={target.step === 1 ? 'numeric' : 'decimal'}
+            maxLength={target.maxLength}
+            name={`${appId}-${target.key}`}
+            pattern={target.step === 1 ? '[0-9]*' : '[0-9]+([.][0-9]+)?'}
+            readOnly={mode === 'committed'}
+            type="text"
+            value={draft}
+            onChange={(event) => {
+              setDraft(sanitizeSteamBetDraft(target.key, event.target.value));
+            }}
+            onFocus={() => {
+              if (mode === 'idle' && isAuthenticated) setMode('editing');
+            }}
+          />
+        </div>
+        <div className="sb-forecast-stats" aria-label={`${target.label} market stats`}>
+          <span>{formatAverage(target.averageValue)} Avg.</span>
+          <span>{compactNumber.format(target.predictionCount)} Vol.</span>
+        </div>
       </div>
       {mode === 'editing' && (
         <button
@@ -110,8 +128,10 @@ export function ForecastCard({
   isAuthenticated: boolean;
   priority?: boolean;
 }) {
+  const [isExpanded, setIsExpanded] = useState(false);
+
   return (
-    <article className="sb-game-card">
+    <article className={`sb-game-card${isExpanded ? ' is-expanded' : ''}`}>
       <div className="sb-game-card__image">
         {/* eslint-disable-next-line @next/next/no-img-element */}
         <img
@@ -124,20 +144,36 @@ export function ForecastCard({
           width={460}
         />
       </div>
-      <header className="sb-game-card__header">
-        <h2>{game.name}</h2>
-        <time dateTime={game.releaseDate}>{game.releaseLabel}</time>
-      </header>
-      <div className="sb-game-card__targets">
-        {game.targets.map((target) => (
-          <ForecastField
-            appId={game.appId}
-            gameName={game.name}
-            isAuthenticated={isAuthenticated}
-            key={target.key}
-            target={target}
-          />
-        ))}
+      <div className="sb-game-card__content">
+        <header className="sb-game-card__header">
+          <h2>{game.name}</h2>
+        </header>
+        <div className="sb-game-card__targets">
+          {game.targets.map((target) => (
+            <ForecastField
+              appId={game.appId}
+              gameName={game.name}
+              isAuthenticated={isAuthenticated}
+              key={target.key}
+              target={target}
+            />
+          ))}
+        </div>
+        <button
+          aria-expanded={isExpanded}
+          aria-label={`${isExpanded ? 'Hide' : 'Show'} release details for ${game.name}`}
+          className="sb-game-card__toggle"
+          onClick={() => setIsExpanded((expanded) => !expanded)}
+          type="button"
+        >
+          <ChevronDown aria-hidden="true" size={28} strokeWidth={1.5} />
+        </button>
+        {isExpanded && (
+          <div className="sb-game-card__details">
+            <span>Release</span>
+            <time dateTime={game.releaseDate}>{game.releaseLabel}</time>
+          </div>
+        )}
       </div>
     </article>
   );

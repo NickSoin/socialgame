@@ -41,4 +41,10 @@ Password recovery uses the same route with `type=recovery` and `next=/update-pas
 
 ## Steam metadata
 
-The MVP stores curated Steam app IDs, titles, and header image URLs with each market. Market resolution must use timestamped, reviewable evidence and an authorised human fallback. No code from `SteamTopWishlistsRank` is copied because that repository did not expose an open-source licence when this implementation was prepared.
+`public.steam_games` is the server-side game catalog. Its current membership comes from the 256 `v2/current` JSON shards published by `NickSoin/SteamTopWishlistsRank`; the ledger is read only for games that have already moved to `released`. The sync rejects incomplete shard sets by comparing them with `v2/meta.json`, then enriches the first 100 upcoming games from Steam's `appdetails` API.
+
+The `sync-steam-catalog` Edge Function is idempotent for each source timestamp and records every run in `public.steam_catalog_sync_runs`. Production runs it at `15 1,6,11,16,21 * * *` UTC, after the upstream GitHub Action scheduled at minute 23 every five hours with a random delay. A game is closed to new predictions as soon as either the upstream ledger marks it released or Steam reports `coming_soon: false`; games that merely leave the current wishlist feed stay in history with `is_wishlisted = false`.
+
+Release detection only closes new predictions and preserves existing immutable bet snapshots. It does not yet resolve the three numeric forecasts (first-weekend CCU, first-month reviews, and US price); those outcomes still require a separate evidence and scoring pipeline with an authorised human fallback.
+
+No source code from `SteamTopWishlistsRank` is copied. NextHit Market consumes its published JSON data contract and uses its own ingestion and validation code.

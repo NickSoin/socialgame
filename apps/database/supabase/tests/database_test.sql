@@ -68,7 +68,7 @@ $$;
 GRANT EXECUTE ON FUNCTION tests.set_user_context(uuid) TO authenticated;
 GRANT EXECUTE ON FUNCTION tests.clear_user_context() TO anon, authenticated;
 
-SELECT plan(103);
+SELECT plan(118);
 
 -- =============================================================================
 -- Schema, RLS, grants, and RPC shape
@@ -84,10 +84,15 @@ SELECT has_table('public', 'coin_ledger', 'coin ledger table exists');
 SELECT has_table('public', 'forecast_targets', 'numeric forecast targets table exists');
 SELECT has_table('public', 'numeric_predictions', 'numeric predictions table exists');
 SELECT has_table('public', 'steam_bets', 'locked Steam bets table exists');
+SELECT has_table('public', 'steam_games', 'Steam wishlist catalog table exists');
+SELECT has_table('public', 'steam_catalog_sync_runs', 'Steam catalog sync history table exists');
 SELECT has_column('public', 'steam_bets', 'game_name', 'Steam bets preserve game names');
 SELECT has_column('public', 'steam_bets', 'release_date', 'Steam bets preserve release dates');
 SELECT has_column('public', 'steam_bets', 'release_label', 'Steam bets preserve release labels');
 SELECT has_column('public', 'steam_bets', 'image_url', 'Steam bets preserve artwork URLs');
+SELECT has_column('public', 'steam_games', 'wishlist_rank', 'Steam games preserve wishlist rank');
+SELECT has_column('public', 'steam_games', 'lifecycle_status', 'Steam games preserve release state');
+SELECT has_column('public', 'steam_games', 'source_updated_at', 'Steam games preserve source freshness');
 SELECT ok(to_regclass('public.leaderboard') IS NOT NULL, 'leaderboard view exists');
 
 SELECT ok(
@@ -129,6 +134,14 @@ SELECT ok(
   (SELECT relrowsecurity FROM pg_class WHERE oid = 'public.steam_bets'::regclass),
   'locked Steam bets has RLS enabled'
 );
+SELECT ok(
+  (SELECT relrowsecurity FROM pg_class WHERE oid = 'public.steam_games'::regclass),
+  'Steam games catalog has RLS enabled'
+);
+SELECT ok(
+  (SELECT relrowsecurity FROM pg_class WHERE oid = 'public.steam_catalog_sync_runs'::regclass),
+  'Steam catalog sync history has RLS enabled'
+);
 SELECT is(
   (
     SELECT prosecdef
@@ -141,6 +154,25 @@ SELECT is(
 SELECT ok(
   has_function_privilege('anon', 'public.get_steam_bet_trends()', 'EXECUTE'),
   'anonymous visitors can read aggregate Steam bet trends'
+);
+SELECT has_function(
+  'public',
+  'get_steam_bet_summaries',
+  ARRAY[]::text[],
+  'Steam bet summary aggregation exists'
+);
+SELECT is(
+  (
+    SELECT prosecdef
+    FROM pg_proc
+    WHERE oid = 'public.get_steam_bet_summaries()'::regprocedure
+  ),
+  true,
+  'Steam bet summary aggregation is SECURITY DEFINER'
+);
+SELECT ok(
+  has_function_privilege('anon', 'public.get_steam_bet_summaries()', 'EXECUTE'),
+  'anonymous visitors can read aggregate Steam bet summaries'
 );
 
 SELECT ok(
@@ -178,6 +210,26 @@ SELECT ok(
 SELECT ok(
   NOT has_table_privilege('anon', 'public.steam_bets', 'SELECT'),
   'anonymous users cannot read Steam bets'
+);
+SELECT ok(
+  has_table_privilege('anon', 'public.steam_games', 'SELECT'),
+  'anonymous visitors can read the Steam games catalog'
+);
+SELECT ok(
+  has_table_privilege('authenticated', 'public.steam_games', 'SELECT'),
+  'authenticated users can read the Steam games catalog'
+);
+SELECT ok(
+  NOT has_table_privilege('anon', 'public.steam_games', 'INSERT'),
+  'anonymous visitors cannot mutate the Steam games catalog'
+);
+SELECT ok(
+  NOT has_table_privilege('authenticated', 'public.steam_games', 'INSERT'),
+  'authenticated users cannot mutate the Steam games catalog'
+);
+SELECT ok(
+  NOT has_table_privilege('authenticated', 'public.steam_catalog_sync_runs', 'SELECT'),
+  'catalog sync history remains service-role only'
 );
 SELECT is(
   (

@@ -65,7 +65,12 @@ export function parseSteamPopularUpcoming(resultsHtml: string): SteamUpcomingGam
       imageUrl,
       releaseDate,
       releaseLabel,
-      targets: STEAM_BET_TARGETS.map((target) => ({ ...target, userValue: null })),
+      targets: STEAM_BET_TARGETS.map((target) => ({
+        ...target,
+        averageValue: null,
+        predictionCount: 0,
+        userValue: null,
+      })),
     });
   }
 

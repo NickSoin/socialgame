@@ -19,7 +19,12 @@ const game: SteamUpcomingGame = {
   name: 'Input Limit Test',
   releaseDate: '2026-08-01',
   releaseLabel: 'August 1',
-  targets: STEAM_BET_TARGETS.map((target) => ({ ...target, userValue: null })),
+  targets: STEAM_BET_TARGETS.map((target) => ({
+    ...target,
+    averageValue: 200,
+    predictionCount: 7_000_000,
+    userValue: null,
+  })),
 };
 
 afterEach(() => {
@@ -28,6 +33,13 @@ afterEach(() => {
 });
 
 describe('ForecastCard', () => {
+  it('shows the average and volume beside each compact prediction input', () => {
+    render(<ForecastCard game={game} isAuthenticated />);
+
+    expect(screen.getAllByText('200 Avg.')).toHaveLength(3);
+    expect(screen.getAllByText('7M Vol.')).toHaveLength(3);
+  });
+
   it('enforces the target-specific character limits while typing', () => {
     render(<ForecastCard game={game} isAuthenticated />);
 

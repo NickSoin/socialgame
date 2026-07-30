@@ -8,7 +8,12 @@ const game = (appId: number, name: string): SteamUpcomingGame => ({
   releaseDate: '2026-08-01',
   releaseLabel: 'Aug 1',
   imageUrl: `https://example.com/${appId}.jpg`,
-  targets: STEAM_BET_TARGETS.map((target) => ({ ...target, userValue: null })),
+  targets: STEAM_BET_TARGETS.map((target) => ({
+    ...target,
+    averageValue: null,
+    predictionCount: 0,
+    userValue: null,
+  })),
 });
 
 describe('buildSteamFeed', () => {
@@ -43,5 +48,25 @@ describe('buildSteamFeed', () => {
     });
     expect(games).toHaveLength(1);
     expect(games[0]?.targets[0]?.userValue).toBe(90);
+  });
+
+  it('adds target-level average and volume summaries to every game card', () => {
+    const games = buildSteamFeed({
+      mode: 'upcoming',
+      liveGames: [game(1, 'One')],
+      bets: [],
+      trends: [],
+      summaries: [{
+        steam_app_id: 1,
+        target_key: 'first_weekend_ccu',
+        average_value: 200,
+        prediction_count: 7_000_000,
+      }],
+    });
+
+    expect(games[0]?.targets[0]).toMatchObject({
+      averageValue: 200,
+      predictionCount: 7_000_000,
+    });
   });
 });

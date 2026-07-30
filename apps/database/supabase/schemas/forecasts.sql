@@ -64,6 +64,61 @@ CREATE TABLE public.steam_bets (
   )
 );
 
+-- Canonical Steam catalog mirrored from NickSoin/SteamTopWishlistsRank.
+-- Only the service role writes this data; visitors receive a read-only catalog.
+CREATE TABLE public.steam_games (
+  steam_app_id bigint PRIMARY KEY,
+  name text NOT NULL,
+  image_url text NOT NULL,
+  release_date date,
+  release_label text NOT NULL DEFAULT 'TBA',
+  lifecycle_status text NOT NULL DEFAULT 'upcoming',
+  wishlist_rank integer,
+  wishlist_estimate text,
+  pre_release_rank integer,
+  is_wishlisted boolean NOT NULL DEFAULT true,
+  source text NOT NULL DEFAULT 'steam_wishlist_rank_v2',
+  source_updated_at timestamptz NOT NULL,
+  first_seen_at timestamptz NOT NULL DEFAULT now(),
+  last_seen_at timestamptz NOT NULL DEFAULT now(),
+  released_at timestamptz,
+  updated_at timestamptz NOT NULL DEFAULT now(),
+  CONSTRAINT steam_games_app_id_check CHECK (steam_app_id > 0),
+  CONSTRAINT steam_games_name_check CHECK (char_length(name) BETWEEN 1 AND 250),
+  CONSTRAINT steam_games_image_url_check CHECK (image_url ~ '^https://'),
+  CONSTRAINT steam_games_release_label_check CHECK (char_length(release_label) BETWEEN 1 AND 80),
+  CONSTRAINT steam_games_lifecycle_check CHECK (lifecycle_status IN ('upcoming', 'released')),
+  CONSTRAINT steam_games_wishlist_rank_check CHECK (
+    wishlist_rank IS NULL OR wishlist_rank BETWEEN 1 AND 10000
+  ),
+  CONSTRAINT steam_games_pre_release_rank_check CHECK (
+    pre_release_rank IS NULL OR pre_release_rank BETWEEN 1 AND 10000
+  ),
+  CONSTRAINT steam_games_release_state_check CHECK (
+    (lifecycle_status = 'upcoming' AND released_at IS NULL)
+    OR (lifecycle_status = 'released' AND released_at IS NOT NULL)
+  )
+);
+
+CREATE TABLE public.steam_catalog_sync_runs (
+  id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+  source_updated_at timestamptz NOT NULL UNIQUE,
+  status text NOT NULL DEFAULT 'running',
+  current_count integer NOT NULL DEFAULT 0,
+  released_count integer NOT NULL DEFAULT 0,
+  started_at timestamptz NOT NULL DEFAULT now(),
+  finished_at timestamptz,
+  error_message text,
+  CONSTRAINT steam_catalog_sync_runs_status_check CHECK (status IN ('running', 'success', 'error')),
+  CONSTRAINT steam_catalog_sync_runs_counts_check CHECK (
+    current_count >= 0 AND released_count >= 0
+  ),
+  CONSTRAINT steam_catalog_sync_runs_completion_check CHECK (
+    (status = 'running' AND finished_at IS NULL)
+    OR (status IN ('success', 'error') AND finished_at IS NOT NULL)
+  )
+);
+
 CREATE INDEX forecast_targets_market_order_idx
   ON public.forecast_targets (market_id, status, display_order);
 
@@ -79,6 +134,19 @@ CREATE INDEX steam_bets_user_created_idx
 CREATE INDEX steam_bets_app_created_idx
   ON public.steam_bets (steam_app_id, created_at DESC);
 
+CREATE INDEX steam_games_current_rank_idx
+  ON public.steam_games (lifecycle_status, is_wishlisted, wishlist_rank)
+  WHERE lifecycle_status = 'upcoming' AND is_wishlisted = true;
+
+CREATE INDEX steam_games_name_search_idx
+  ON public.steam_games (lower(name) text_pattern_ops);
+
+CREATE INDEX steam_games_source_updated_idx
+  ON public.steam_games (source_updated_at DESC);
+
+CREATE INDEX steam_catalog_sync_runs_started_idx
+  ON public.steam_catalog_sync_runs (started_at DESC);
+
 CREATE TRIGGER forecast_targets_set_updated_at
   BEFORE UPDATE ON public.forecast_targets
   FOR EACH ROW
@@ -89,9 +157,16 @@ CREATE TRIGGER numeric_predictions_set_updated_at
   FOR EACH ROW
   EXECUTE FUNCTION private.set_updated_at();
 
+CREATE TRIGGER steam_games_set_updated_at
+  BEFORE UPDATE ON public.steam_games
+  FOR EACH ROW
+  EXECUTE FUNCTION private.set_updated_at();
+
 ALTER TABLE public.forecast_targets ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.numeric_predictions ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.steam_bets ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.steam_games ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.steam_catalog_sync_runs ENABLE ROW LEVEL SECURITY;
 
 CREATE POLICY forecast_targets_public_read
   ON public.forecast_targets
@@ -116,6 +191,12 @@ CREATE POLICY steam_bets_insert_own
   FOR INSERT
   TO authenticated
   WITH CHECK ((SELECT auth.uid()) = user_id);
+
+CREATE POLICY steam_games_public_read
+  ON public.steam_games
+  FOR SELECT
+  TO anon, authenticated
+  USING (true);
 
 CREATE OR REPLACE FUNCTION public.upsert_numeric_prediction(
   p_target_id uuid,
@@ -290,22 +371,53 @@ AS $$
   ORDER BY count(*) DESC, max(bet.created_at) DESC;
 $$;
 
+CREATE OR REPLACE FUNCTION public.get_steam_bet_summaries()
+RETURNS TABLE (
+  steam_app_id bigint,
+  target_key text,
+  average_value numeric,
+  prediction_count bigint
+)
+LANGUAGE sql
+STABLE
+SECURITY DEFINER
+SET search_path = ''
+AS $$
+  SELECT
+    bet.steam_app_id,
+    bet.target_key,
+    avg(bet.value) AS average_value,
+    count(*) AS prediction_count
+  FROM public.steam_bets AS bet
+  GROUP BY bet.steam_app_id, bet.target_key
+  ORDER BY bet.steam_app_id, bet.target_key;
+$$;
+
 REVOKE ALL ON TABLE public.forecast_targets FROM PUBLIC;
 REVOKE ALL ON TABLE public.numeric_predictions FROM PUBLIC;
 REVOKE ALL ON TABLE public.steam_bets FROM PUBLIC;
+REVOKE ALL ON TABLE public.steam_games FROM PUBLIC;
+REVOKE ALL ON TABLE public.steam_catalog_sync_runs FROM PUBLIC;
 REVOKE ALL ON TABLE public.steam_bets FROM anon, authenticated;
+REVOKE ALL ON TABLE public.steam_games FROM anon, authenticated;
+REVOKE ALL ON TABLE public.steam_catalog_sync_runs FROM anon, authenticated;
 GRANT SELECT ON TABLE public.forecast_targets TO anon, authenticated;
 GRANT SELECT ON TABLE public.numeric_predictions TO authenticated;
 GRANT SELECT, INSERT ON TABLE public.steam_bets TO authenticated;
+GRANT SELECT ON TABLE public.steam_games TO anon, authenticated;
 GRANT ALL ON TABLE public.forecast_targets TO service_role;
 GRANT ALL ON TABLE public.numeric_predictions TO service_role;
 GRANT ALL ON TABLE public.steam_bets TO service_role;
+GRANT ALL ON TABLE public.steam_games TO service_role;
+GRANT ALL ON TABLE public.steam_catalog_sync_runs TO service_role;
 
 REVOKE ALL ON FUNCTION public.upsert_numeric_prediction(uuid, numeric) FROM PUBLIC;
 REVOKE ALL ON FUNCTION public.get_forecast_summaries(uuid[]) FROM PUBLIC;
 REVOKE ALL ON FUNCTION public.get_forecast_leaderboard(text) FROM PUBLIC;
 REVOKE ALL ON FUNCTION public.get_steam_bet_trends() FROM PUBLIC;
+REVOKE ALL ON FUNCTION public.get_steam_bet_summaries() FROM PUBLIC;
 GRANT EXECUTE ON FUNCTION public.upsert_numeric_prediction(uuid, numeric) TO authenticated;
 GRANT EXECUTE ON FUNCTION public.get_forecast_summaries(uuid[]) TO anon, authenticated;
 GRANT EXECUTE ON FUNCTION public.get_forecast_leaderboard(text) TO anon, authenticated;
 GRANT EXECUTE ON FUNCTION public.get_steam_bet_trends() TO anon, authenticated, service_role;
+GRANT EXECUTE ON FUNCTION public.get_steam_bet_summaries() TO anon, authenticated, service_role;

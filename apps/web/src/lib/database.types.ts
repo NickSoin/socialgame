@@ -407,6 +407,96 @@ export type Database = {
           },
         ]
       }
+      steam_catalog_sync_runs: {
+        Row: {
+          current_count: number
+          error_message: string | null
+          finished_at: string | null
+          id: string
+          released_count: number
+          source_updated_at: string
+          started_at: string
+          status: string
+        }
+        Insert: {
+          current_count?: number
+          error_message?: string | null
+          finished_at?: string | null
+          id?: string
+          released_count?: number
+          source_updated_at: string
+          started_at?: string
+          status?: string
+        }
+        Update: {
+          current_count?: number
+          error_message?: string | null
+          finished_at?: string | null
+          id?: string
+          released_count?: number
+          source_updated_at?: string
+          started_at?: string
+          status?: string
+        }
+        Relationships: []
+      }
+      steam_games: {
+        Row: {
+          first_seen_at: string
+          image_url: string
+          is_wishlisted: boolean
+          last_seen_at: string
+          lifecycle_status: string
+          name: string
+          pre_release_rank: number | null
+          release_date: string | null
+          release_label: string
+          released_at: string | null
+          source: string
+          source_updated_at: string
+          steam_app_id: number
+          updated_at: string
+          wishlist_estimate: string | null
+          wishlist_rank: number | null
+        }
+        Insert: {
+          first_seen_at?: string
+          image_url: string
+          is_wishlisted?: boolean
+          last_seen_at?: string
+          lifecycle_status?: string
+          name: string
+          pre_release_rank?: number | null
+          release_date?: string | null
+          release_label?: string
+          released_at?: string | null
+          source?: string
+          source_updated_at: string
+          steam_app_id: number
+          updated_at?: string
+          wishlist_estimate?: string | null
+          wishlist_rank?: number | null
+        }
+        Update: {
+          first_seen_at?: string
+          image_url?: string
+          is_wishlisted?: boolean
+          last_seen_at?: string
+          lifecycle_status?: string
+          name?: string
+          pre_release_rank?: number | null
+          release_date?: string | null
+          release_label?: string
+          released_at?: string | null
+          source?: string
+          source_updated_at?: string
+          steam_app_id?: number
+          updated_at?: string
+          wishlist_estimate?: string | null
+          wishlist_rank?: number | null
+        }
+        Relationships: []
+      }
     }
     Views: {
       leaderboard: {
@@ -448,6 +538,15 @@ export type Database = {
           raw_average: number
           target_id: string
           weighted_average: number
+        }[]
+      }
+      get_steam_bet_summaries: {
+        Args: never
+        Returns: {
+          average_value: number
+          prediction_count: number
+          steam_app_id: number
+          target_key: string
         }[]
       }
       get_steam_bet_trends: {

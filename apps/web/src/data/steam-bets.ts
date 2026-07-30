@@ -1,10 +1,22 @@
 import 'server-only';
+import { createClient } from '@supabase/supabase-js';
 import { createSupabaseClient } from '@/supabase-clients/server';
+import type { Database } from '@/lib/database.types';
 import type {
   SteamBetRow,
+  SteamBetSummary,
   SteamBetTargetKey,
   SteamBetTrend,
 } from '@/lib/steam-bets';
+import { STEAM_BET_TARGET_KEYS } from '@/lib/steam-bets';
+
+function createPublicSteamStatsClient() {
+  return createClient<Database>(
+    process.env.NEXT_PUBLIC_SUPABASE_URL,
+    process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY,
+    { auth: { autoRefreshToken: false, persistSession: false } },
+  );
+}
 
 export async function getCurrentUserSteamBets(): Promise<{
   isAuthenticated: boolean;
@@ -39,7 +51,7 @@ export async function getCurrentUserSteamBets(): Promise<{
 }
 
 export async function getSteamBetTrends(): Promise<SteamBetTrend[]> {
-  const supabase = await createSupabaseClient();
+  const supabase = createPublicSteamStatsClient();
   const { data, error } = await supabase.rpc('get_steam_bet_trends');
   if (error) throw new Error(error.message);
 
@@ -51,4 +63,22 @@ export async function getSteamBetTrends(): Promise<SteamBetTrend[]> {
     release_label: row.release_label,
     image_url: row.image_url,
   }));
+}
+
+export async function getSteamBetSummaries(): Promise<SteamBetSummary[]> {
+  const supabase = createPublicSteamStatsClient();
+  const { data, error } = await supabase.rpc('get_steam_bet_summaries');
+  if (error) throw new Error(error.message);
+
+  return (data ?? []).flatMap((row) => {
+    const targetKey = row.target_key as SteamBetTargetKey;
+    if (!STEAM_BET_TARGET_KEYS.includes(targetKey)) return [];
+
+    return [{
+      steam_app_id: Number(row.steam_app_id),
+      target_key: targetKey,
+      average_value: Number(row.average_value),
+      prediction_count: Number(row.prediction_count),
+    }];
+  });
 }
