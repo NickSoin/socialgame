@@ -1,0 +1,12 @@
+import { Suspense } from 'react';
+import { SteamFeedPage } from '@/components/steambets/steam-feed-page';
+
+export default function HomePage(props: {
+  searchParams: Promise<{ q?: string }>;
+}) {
+  return (
+    <Suspense fallback={<div className="sb-shell sb-page sb-muted">Loading games…</div>}>
+      <SteamFeedPage mode="upcoming" {...props} />
+    </Suspense>
+  );
+}

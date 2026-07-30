@@ -1,0 +1,42 @@
+.env.local
+.env.*.local
+node_modules
+tsconfig.tsbuildinfo
+.turbo
+.cwd-test.log
+supabase/.temp/project-ref
+.DS_Store
+
+# next.js
+.next
+.next-dev*
+/out
+dist
+.wrangler
+
+# next-sitemap
+**/public/robots.txt
+**/public/sitemap.xml
+**/public/sitemap-*.xml
+
+# debug
+npm-debug.log*
+pnpm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+
+*.tsbuildinfo
+
+# playwright
+test-results/
+playwright/.auth/
+
+# Legacy ascii/one CLI ignore file
+.oneignore
+
+# local runtime logs
+.steam-bets-server.*.log
+.steambets-sites.*.log
+
+# Supabase CLI link state
+**/supabase/.temp/
