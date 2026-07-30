@@ -1,6 +1,6 @@
 import { expect, test } from '@playwright/test';
 
-test.describe.serial('GameCast authenticated flows', () => {
+test.describe.serial('NextHit Market authenticated flows', () => {
   test('starts with a protected play-money account', async ({ page }) => {
     await page.goto('/dashboard');
 

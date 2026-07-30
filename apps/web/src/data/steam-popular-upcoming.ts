@@ -14,7 +14,7 @@ export async function getSteamPopularUpcoming(): Promise<SteamUpcomingGame[]> {
   const response = await fetch(STEAM_POPULAR_UPCOMING_URL, {
     headers: {
       Accept: 'application/json',
-      'User-Agent': 'SteamBets/1.0 (+local prediction market)',
+      'User-Agent': 'NextHitMarket/1.0 (+Steam game forecasting)',
     },
   });
 

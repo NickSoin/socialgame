@@ -29,7 +29,7 @@ export function SignUp({ next }: { next?: string }) {
     return (
       <section className="sb-auth-card" aria-labelledby="auth-title">
         <h1 id="auth-title">Check your email</h1>
-        <p className="sb-auth-note">Use the confirmation link to finish creating your SteamBets account.</p>
+        <p className="sb-auth-note">Use the confirmation link to finish creating your NextHit Market account.</p>
         <Link className="sb-auth-primary-link" href="/login">Back to sign in</Link>
       </section>
     );

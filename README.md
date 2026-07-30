@@ -1,8 +1,8 @@
-# GameCast
+# NextHit Market
 
-GameCast is a desktop-first, play-money prediction platform for Steam game events. Users receive platform coins, make binary YES/NO predictions, track their results, and compete on public coin and accuracy leaderboards.
+NextHit Market is a desktop-first forecasting platform for upcoming Steam games. Users predict launch performance, review totals, and pricing, then compare their forecasts as results become available.
 
-GameCast does **not** support real money, cash-equivalent prizes, cryptocurrency, wallets, deposits, withdrawals, blockchain infrastructure, or user-uploaded avatars.
+NextHit Market does **not** support real money, cash-equivalent prizes, cryptocurrency, wallets, deposits, withdrawals, blockchain infrastructure, or user-uploaded avatars.
 
 ## What is included
 

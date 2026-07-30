@@ -41,19 +41,19 @@ export async function generateMetadata(): Promise<Metadata> {
   return {
     metadataBase: new URL(origin),
     title: {
-      default: 'SteamBets — Steam forecasts',
-      template: '%s · SteamBets',
+      default: 'NextHit Market — Steam forecasts',
+      template: '%s · NextHit Market',
     },
     description: 'Forecast upcoming Steam games.',
     openGraph: {
-      title: 'SteamBets — Steam forecasts',
+      title: 'NextHit Market — Steam forecasts',
       description: 'Forecast upcoming Steam games.',
       type: 'website',
-      images: [{ url: imageUrl, width: 1672, height: 941, alt: 'SteamBets social preview' }],
+      images: [{ url: imageUrl, width: 1672, height: 941, alt: 'NextHit Market social preview' }],
     },
     twitter: {
       card: 'summary_large_image',
-      title: 'SteamBets — Steam forecasts',
+      title: 'NextHit Market — Steam forecasts',
       description: 'Forecast upcoming Steam games.',
       images: [imageUrl],
     },

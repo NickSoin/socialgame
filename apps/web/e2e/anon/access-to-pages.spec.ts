@@ -4,13 +4,13 @@ test.describe.parallel("Anonymous user gated page access", () => {
   test("is redirected from dashboard to login", async ({ page }) => {
     await page.goto("/dashboard");
     await expect(page).toHaveURL(/login/, { timeout: 10000 });
-    await expect(page.getByText("Sign in to GameCast")).toBeVisible();
+    await expect(page.getByText("Sign in to NextHit Market")).toBeVisible();
   });
 
   test("is redirected from private items to login", async ({ page }) => {
     await page.goto("/private-items");
     await expect(page).toHaveURL(/login/, { timeout: 10000 });
-    await expect(page.getByText("Sign in to GameCast")).toBeVisible();
+    await expect(page.getByText("Sign in to NextHit Market")).toBeVisible();
   });
 
   for (const protectedPath of [

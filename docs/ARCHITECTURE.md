@@ -1,4 +1,4 @@
-# GameCast architecture
+# NextHit Market architecture
 
 ## Trust boundaries
 

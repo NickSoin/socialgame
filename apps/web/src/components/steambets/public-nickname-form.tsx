@@ -42,7 +42,7 @@ export function PublicNicknameForm({ nickname }: { nickname: string }) {
       }}
     >
       <label htmlFor="public-nickname">Public nickname</label>
-      <p>This is the name other SteamBets players will see.</p>
+      <p>This is the name other NextHit Market players will see.</p>
       <div className="sb-nickname-form__controls">
         <input
           autoComplete="nickname"

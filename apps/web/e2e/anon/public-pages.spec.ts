@@ -26,7 +26,7 @@ test.describe.parallel('Anonymous user public pages', () => {
     await page.goto('/login');
 
     await expect(page).toHaveURL('/login');
-    await expect(page.getByText('Sign in to GameCast')).toBeVisible();
+    await expect(page.getByText('Sign in to NextHit Market')).toBeVisible();
     await expect(page.getByRole('tab', { name: 'Magic Link' })).toBeVisible();
   });
 
@@ -34,7 +34,7 @@ test.describe.parallel('Anonymous user public pages', () => {
     await page.goto('/sign-up');
 
     await expect(page).toHaveURL('/sign-up');
-    await expect(page.getByText('Create your GameCast account')).toBeVisible();
+    await expect(page.getByText('Create your NextHit Market account')).toBeVisible();
     await expect(page.getByRole('tab', { name: 'Magic Link' })).toBeVisible();
   });
 });

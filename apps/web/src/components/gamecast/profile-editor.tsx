@@ -123,7 +123,7 @@ export function ProfileEditor({ profile }: { profile: PublicProfile }) {
       <section className="form-card">
         <h2>Profile badge</h2>
         <p className="text-sm text-muted-foreground mb-4">
-          Choose a simple badge. SteamBets does not use profile photos.
+          Choose a simple badge. NextHit Market does not use profile photos.
         </p>
         <div className="avatar-picker">
           {AVATARS.map((avatar) => (
