@@ -41,7 +41,7 @@ Password recovery uses the same route with `type=recovery` and `next=/update-pas
 
 ## Steam metadata
 
-`public.steam_games` is the server-side game catalog. Its current membership comes from the 256 `v2/current` JSON shards published by `NickSoin/SteamTopWishlistsRank`; the ledger is read only for games that have already moved to `released`. The sync rejects incomplete shard sets by comparing them with `v2/meta.json`, then enriches the first 100 upcoming games from Steam's `appdetails` API.
+`public.steam_games` is the server-side game catalog. Its current membership comes from the 256 `v2/current` JSON shards published by `NickSoin/SteamTopWishlistsRank`; the ledger is read only for games that have already moved to `released`. The sync rejects incomplete shard sets by comparing them with `v2/meta.json`, then enriches the first 200 upcoming games from Steam's `appdetails` API. If a stored legacy Steam artwork URL is missing, the web app resolves the current hashed `capsule_image` URL on demand and caches the redirect.
 
 The `sync-steam-catalog` Edge Function is idempotent for each source timestamp and records every run in `public.steam_catalog_sync_runs`. Production runs it at `15 1,6,11,16,21 * * *` UTC, after the upstream GitHub Action scheduled at minute 23 every five hours with a random delay. A game is closed to new predictions as soon as either the upstream ledger marks it released or Steam reports `coming_soon: false`; games that merely leave the current wishlist feed stay in history with `is_wishlisted = false`.
 

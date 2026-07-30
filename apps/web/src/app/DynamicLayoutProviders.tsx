@@ -21,10 +21,12 @@ export function DynamicLayoutProviders({
       {children}
       <Suspense>
         <ProgressBar
-          height="4px"
-          color="#0047ab"
-          options={{ showSpinner: false }}
+          color="#1452f0"
+          height="2px"
+          options={{ showSpinner: false, trickleSpeed: 180 }}
           shallowRouting
+          startOnLoad
+          startPosition={0.08}
         />
         <CustomerToaster />
       </Suspense>

@@ -16,13 +16,14 @@ const SOURCE_CURRENT_BASE_URL =
   'https://nicksoin.github.io/SteamTopWishlistsRank/v2/current';
 const SOURCE_LEDGER_URL =
   'https://raw.githubusercontent.com/NickSoin/SteamTopWishlistsRank/main/data/wishlist-ledger.json';
-const ENRICHED_GAME_COUNT = 100;
+const ENRICHED_GAME_COUNT = 200;
 const UPSERT_BATCH_SIZE = 500;
 const DETAILS_CONCURRENCY = 8;
 const SHARD_CONCURRENCY = 16;
 const RUNNING_LOCK_MS = 20 * 60 * 1000;
 const TRUSTED_IMAGE_HOSTS = new Set([
   'shared.fastly.steamstatic.com',
+  'shared.akamai.steamstatic.com',
   'cdn.akamai.steamstatic.com',
   'steamcdn-a.akamaihd.net',
 ]);
@@ -228,6 +229,7 @@ async function fetchSteamAppDetails(appId: number): Promise<SteamAppDetails | nu
     const payload = await fetchJsonWithRetry<Record<string, {
       success?: boolean;
       data?: {
+        capsule_image?: unknown;
         header_image?: unknown;
         release_date?: { coming_soon?: unknown; date?: unknown };
       };
@@ -237,7 +239,10 @@ async function fetchSteamAppDetails(appId: number): Promise<SteamAppDetails | nu
 
     const releaseDate = normalizeSteamDate(app.data.release_date?.date);
     return {
-      imageUrl: trustedImageUrl(app.data.header_image) ?? fallbackHeaderImage(appId),
+      imageUrl:
+        trustedImageUrl(app.data.capsule_image) ??
+        trustedImageUrl(app.data.header_image) ??
+        fallbackHeaderImage(appId),
       releaseDate,
       releaseLabel: releaseDate ? formatReleaseLabel(releaseDate) : 'TBA',
       released: app.data.release_date?.coming_soon === false,

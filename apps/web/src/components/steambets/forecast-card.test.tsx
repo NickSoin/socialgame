@@ -38,6 +38,16 @@ describe('ForecastCard', () => {
 
     expect(screen.getAllByText('200 Avg.')).toHaveLength(3);
     expect(screen.getAllByText('7M Vol.')).toHaveLength(3);
+    expect(screen.getByText('August 1').getAttribute('dateTime')).toBe('2026-08-01');
+  });
+
+  it('falls back to the Steam artwork resolver when a stored banner is missing', () => {
+    render(<ForecastCard game={game} isAuthenticated />);
+
+    const artwork = screen.getByRole('img', { name: 'Input Limit Test artwork' });
+    fireEvent.error(artwork);
+
+    expect(artwork.getAttribute('src')).toBe('/api/steam-artwork/42');
   });
 
   it('enforces the target-specific character limits while typing', () => {

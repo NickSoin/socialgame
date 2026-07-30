@@ -65,7 +65,7 @@ button:disabled { cursor: default; }
 .sb-shell {
   width: min(100%, 1920px);
   margin-inline: auto;
-  padding-inline: 170px;
+  padding-inline: 160px;
 }
 
 .sb-header {
@@ -114,7 +114,7 @@ button:disabled { cursor: default; }
 .sb-search-command {
   position: relative;
   min-width: 0;
-  width: 100%;
+  width: 60%;
   overflow: visible;
 }
 .sb-search {
@@ -343,7 +343,6 @@ button:disabled { cursor: default; }
   display: grid;
   grid-template-columns: 35% minmax(0, 65%);
   min-width: 0;
-  min-height: 168px;
   padding: 0;
   overflow: hidden;
   border: 1px solid var(--border);
@@ -351,12 +350,12 @@ button:disabled { cursor: default; }
   background: #fff;
   box-shadow: 0 2px 8px rgb(14 15 17 / 4%);
   content-visibility: auto;
-  contain-intrinsic-size: 168px;
+  contain-intrinsic-size: 166px;
 }
 .sb-game-card__image {
-  align-self: stretch;
+  align-self: start;
   width: 100%;
-  min-height: 168px;
+  aspect-ratio: 231 / 87;
   overflow: hidden;
   background: #e9eaec;
 }
@@ -364,17 +363,19 @@ button:disabled { cursor: default; }
   display: block;
   width: 100%;
   height: 100%;
-  object-fit: cover;
+  object-fit: contain;
 }
 .sb-game-card__content {
   display: grid;
-  grid-template-rows: 48px minmax(0, 1fr) 22px;
+  grid-template-rows: 38px minmax(0, 1fr);
   min-width: 0;
   padding: 0 20px 0 7px;
 }
 .sb-game-card__header {
   display: flex;
   align-items: center;
+  justify-content: space-between;
+  gap: 16px;
   min-width: 0;
   padding-left: 8px;
 }
@@ -391,29 +392,37 @@ button:disabled { cursor: default; }
   text-wrap: balance;
   white-space: nowrap;
 }
+.sb-game-card__header time {
+  flex: 0 0 auto;
+  color: var(--foreground);
+  font-size: 20px;
+  font-variant-numeric: tabular-nums;
+  font-weight: 700;
+  letter-spacing: -0.035em;
+  line-height: 1;
+  white-space: nowrap;
+}
 .sb-game-card__targets {
   display: grid;
   grid-template-columns: repeat(3, minmax(0, 1fr));
-  align-items: stretch;
+  align-items: start;
   gap: 16px;
   min-width: 0;
 }
 .sb-forecast-field {
   position: relative;
   display: grid;
-  grid-template-rows: 35px 50px;
-  align-content: center;
-  gap: 8px;
+  grid-template-rows: 24px 50px;
+  align-content: start;
+  gap: 6px;
   min-width: 0;
-  height: 100%;
   margin: 0;
-  padding: 12px;
+  padding: 9px 10px;
   border: 1px solid var(--border);
   border-radius: 5px;
   background: #fff;
   text-align: left;
 }
-.sb-forecast-field.is-editing { margin-bottom: 38px; }
 .sb-forecast-field > label {
   display: flex;
   align-items: center;
@@ -482,7 +491,7 @@ button:disabled { cursor: default; }
 .sb-make-bet {
   position: absolute;
   left: 50%;
-  bottom: -34px;
+  bottom: -27px;
   z-index: 2;
   min-height: 36px;
   padding: 4px 13px;
@@ -509,35 +518,6 @@ button:disabled { cursor: default; }
   color: #a32929;
   font-size: var(--font-secondary);
 }
-.sb-game-card__toggle {
-  align-self: center;
-  justify-self: center;
-  display: inline-grid;
-  place-items: center;
-  width: 40px;
-  height: 22px;
-  padding: 0;
-  border: 0;
-  background: transparent;
-  color: var(--foreground);
-}
-.sb-game-card__toggle svg { transition: transform 160ms ease; }
-.sb-game-card__toggle:hover { color: var(--accent); }
-.sb-game-card__toggle:focus-visible { border-radius: 4px; outline: 3px solid #bfd6ff; }
-.sb-game-card__toggle[aria-expanded='true'] svg { transform: rotate(180deg); }
-.sb-game-card__details {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 24px;
-  min-height: 42px;
-  padding: 8px 10px;
-  border-top: 1px solid var(--border);
-  color: var(--muted-foreground);
-  font-size: var(--font-secondary);
-}
-.sb-game-card__details time { color: var(--foreground); font-weight: 600; }
-
 .sb-empty {
   display: flex;
   flex-direction: column;

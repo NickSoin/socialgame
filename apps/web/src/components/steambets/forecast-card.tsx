@@ -2,7 +2,6 @@
 
 import { useRef, useState } from 'react';
 import { useAction } from 'next-safe-action/hooks';
-import { ChevronDown } from 'lucide-react';
 import { placeSteamBetAction } from '@/data/actions/gamecast-actions';
 import type {
   SteamBetTarget,
@@ -128,25 +127,30 @@ export function ForecastCard({
   isAuthenticated: boolean;
   priority?: boolean;
 }) {
-  const [isExpanded, setIsExpanded] = useState(false);
-
   return (
-    <article className={`sb-game-card${isExpanded ? ' is-expanded' : ''}`}>
+    <article className="sb-game-card">
       <div className="sb-game-card__image">
         {/* eslint-disable-next-line @next/next/no-img-element */}
         <img
           alt={`${game.name} artwork`}
           decoding="async"
           fetchPriority={priority ? 'high' : 'auto'}
-          height={174}
+          height={87}
           loading={priority ? 'eager' : 'lazy'}
+          onError={(event) => {
+            const fallbackUrl = `/api/steam-artwork/${game.appId}`;
+            if (event.currentTarget.getAttribute('src') !== fallbackUrl) {
+              event.currentTarget.setAttribute('src', fallbackUrl);
+            }
+          }}
           src={game.imageUrl}
-          width={460}
+          width={231}
         />
       </div>
       <div className="sb-game-card__content">
         <header className="sb-game-card__header">
           <h2>{game.name}</h2>
+          <time dateTime={game.releaseDate}>{game.releaseLabel}</time>
         </header>
         <div className="sb-game-card__targets">
           {game.targets.map((target) => (
@@ -159,21 +163,6 @@ export function ForecastCard({
             />
           ))}
         </div>
-        <button
-          aria-expanded={isExpanded}
-          aria-label={`${isExpanded ? 'Hide' : 'Show'} release details for ${game.name}`}
-          className="sb-game-card__toggle"
-          onClick={() => setIsExpanded((expanded) => !expanded)}
-          type="button"
-        >
-          <ChevronDown aria-hidden="true" size={28} strokeWidth={1.5} />
-        </button>
-        {isExpanded && (
-          <div className="sb-game-card__details">
-            <span>Release</span>
-            <time dateTime={game.releaseDate}>{game.releaseLabel}</time>
-          </div>
-        )}
       </div>
     </article>
   );
