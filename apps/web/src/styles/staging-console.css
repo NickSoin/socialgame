@@ -217,6 +217,7 @@
 .sb-staging-card-row:focus-within { z-index: 60; }
 
 .sb-staging-card-row > .sb-game-card {
+  z-index: 1;
   overflow: visible;
   contain: none;
   content-visibility: visible;
