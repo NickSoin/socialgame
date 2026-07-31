@@ -7,6 +7,22 @@ import { toSteamUpcomingGame } from "@/lib/steam-game-catalog";
 const CATALOG_FIELDS =
   "steam_app_id,name,image_url,release_date,release_label,tags,wishlist_rank" as const;
 
+export type SteamCatalogPage = {
+  games: SteamUpcomingGame[];
+  total: number;
+};
+
+type SteamCatalogPageOptions = {
+  limit?: number;
+  offset?: number;
+};
+
+function getPageRange({ limit = 12, offset = 0 }: SteamCatalogPageOptions) {
+  const safeLimit = Math.min(Math.max(Math.trunc(limit), 1), 50);
+  const safeOffset = Math.max(Math.trunc(offset), 0);
+  return { from: safeOffset, to: safeOffset + safeLimit - 1 };
+}
+
 function createPublicCatalogClient() {
   return createClient<Database>(
     process.env.NEXT_PUBLIC_SUPABASE_URL,
@@ -34,26 +50,28 @@ export async function getSteamCatalogGames(limit = 200): Promise<SteamUpcomingGa
 }
 
 export async function getSteamPopularUpcomingGames(
-  limit = 200,
-): Promise<SteamUpcomingGame[] | null> {
+  options: SteamCatalogPageOptions = {},
+): Promise<SteamCatalogPage | null> {
+  const { from, to } = getPageRange(options);
   const supabase = createPublicCatalogClient();
-  const { data, error } = await supabase
+  const { data, error, count } = await supabase
     .from("steam_games")
-    .select(CATALOG_FIELDS)
+    .select(CATALOG_FIELDS, { count: "exact" })
     .eq("lifecycle_status", "upcoming")
     .eq("is_wishlisted", true)
     .eq("is_popular_upcoming", true)
     .order("release_date", { ascending: true, nullsFirst: false })
     .order("wishlist_rank", { ascending: true, nullsFirst: false })
     .order("popular_upcoming_position", { ascending: true })
-    .limit(Math.min(Math.max(limit, 1), 200));
+    .range(from, to);
 
   if (error) {
     console.error("Could not load the stored Steam popular upcoming catalog.", error);
     return null;
   }
 
-  return (data ?? []).map(toSteamUpcomingGame);
+  const games = (data ?? []).map(toSteamUpcomingGame);
+  return { games, total: count ?? games.length };
 }
 
 export async function getSteamCatalogGamesByIds(appIds: number[]) {
@@ -80,26 +98,35 @@ export async function searchSteamCatalogGames(
   query: string,
   limit = 20,
 ): Promise<SteamUpcomingGame[]> {
-  const normalizedQuery = query.trim().slice(0, 80);
-  if (!normalizedQuery) return [];
+  return (await searchSteamCatalogGamesPage(query, { limit })).games;
+}
 
+export async function searchSteamCatalogGamesPage(
+  query: string,
+  options: SteamCatalogPageOptions = {},
+): Promise<SteamCatalogPage> {
+  const normalizedQuery = query.trim().slice(0, 80);
+  if (!normalizedQuery) return { games: [], total: 0 };
+
+  const { from, to } = getPageRange(options);
   const escapedQuery = normalizedQuery.replace(/[\\%_]/g, "\\$&");
   const supabase = createPublicCatalogClient();
-  const { data, error } = await supabase
+  const { data, error, count } = await supabase
     .from("steam_games")
-    .select(CATALOG_FIELDS)
+    .select(CATALOG_FIELDS, { count: "exact" })
     .eq("lifecycle_status", "upcoming")
     .eq("is_wishlisted", true)
     .ilike("name", `%${escapedQuery}%`)
     .order("wishlist_rank", { ascending: true })
-    .limit(Math.min(Math.max(limit, 1), 50));
+    .range(from, to);
 
   if (error) {
     console.error("Could not search the Steam wishlist catalog.", error);
-    return [];
+    return { games: [], total: 0 };
   }
 
-  return (data ?? []).map(toSteamUpcomingGame);
+  const games = (data ?? []).map(toSteamUpcomingGame);
+  return { games, total: count ?? games.length };
 }
 
 export async function getSteamWishlistRanks(appIds: number[]) {
