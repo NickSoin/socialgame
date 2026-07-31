@@ -22,7 +22,8 @@ const game: SteamUpcomingGame = {
   releaseDate: "2026-08-01",
   releaseLabel: "August 1",
   tags: ["Action", "RPG", "Singleplayer"],
-  wishlistRank: 77,
+      wishlistRank: 77,
+      followerCount: 12345,
   targets: STEAM_BET_TARGETS.map((target) => ({
     ...target,
     averageValue: 200,

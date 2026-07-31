@@ -154,7 +154,7 @@ Deno.serve(async (request) => {
       .filter((row) => row.lifecycle_status === 'upcoming' && row.is_wishlisted)
       .map((row) => row.steam_app_id);
     const initialStates = activeAppIds.flatMap((steamAppId) =>
-      (['release', 'tags', 'media'] as const).map((component) => ({
+      (['release', 'tags', 'media', 'followers'] as const).map((component) => ({
         steam_app_id: steamAppId,
         component,
         status: 'pending',

@@ -5,7 +5,7 @@ import type { SteamUpcomingGame } from "@/lib/steam-bets";
 import { toSteamUpcomingGame } from "@/lib/steam-game-catalog";
 
 const CATALOG_FIELDS =
-  "steam_app_id,name,image_url,release_date,release_label,release_precision,tags,lifecycle_status,wishlist_rank,pre_release_rank,steam_game_media(kind,position,storage_bucket,storage_path,active)" as const;
+  "steam_app_id,name,image_url,release_date,release_label,release_precision,tags,lifecycle_status,wishlist_rank,pre_release_rank,follower_count,steam_game_media(kind,position,storage_bucket,storage_path,active)" as const;
 
 export type SteamCatalogPage = {
   games: SteamUpcomingGame[];

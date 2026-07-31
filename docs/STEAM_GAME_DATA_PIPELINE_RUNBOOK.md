@@ -2,7 +2,7 @@
 
 ## Runtime ownership
 
-- Supabase Edge Functions discover catalog, release, tags, and screenshot source data.
+- Supabase Edge Functions discover catalog, release, tags, followers, and screenshot source data.
 - A Node.js worker with `sharp` performs image conversion and Storage publication.
 - The browser reads cached database rows and public active Storage objects only.
 
@@ -18,6 +18,7 @@ pnpm supabase db push
 pnpm supabase functions deploy sync-steam-catalog --no-verify-jwt
 pnpm supabase functions deploy sync-steam-popular --no-verify-jwt
 pnpm supabase functions deploy sync-steam-details --no-verify-jwt
+pnpm supabase functions deploy sync-steam-followers --no-verify-jwt
 pnpm supabase secrets set STEAM_SYNC_CRON_SECRET="$STEAM_SYNC_CRON_SECRET"
 ```
 
@@ -51,7 +52,7 @@ To force rediscovery for a component, clear only its retry/lease and mark it pen
 ```sql
 update public.steam_game_enrichment_state
 set status = 'pending', retry_after = null, lease_owner = null, lease_expires_at = null
-where steam_app_id = 4534960 and component in ('release', 'tags', 'media');
+where steam_app_id = 4534960 and component in ('release', 'tags', 'media', 'followers');
 ```
 
 ## Quality and failure checks
@@ -64,4 +65,6 @@ select * from public.get_steam_game_data_quality_report();
 
 Investigate nonzero stale, pending, or failed counts through `steam_game_enrichment_state`, ordered by `retry_after` and `consecutive_failures`. A `not_available` state is terminal for the current successful source response; an `error` state is retryable and must retain last-good public values. Watch `steam_enrichment_runs` for unfinished `running` rows and compare uploaded/succeeded/partial/failed counts.
 
-For safe rollback, stop the GitHub workflow and unschedule the three sync jobs first. Revert application code and schema through a new declarative schema change/migration; never edit an existing migration file. Active Storage objects remain readable during rollback and can be garbage-collected only after verifying no active database row references them.
+Followers are refreshed independently in paced batches of 20 every four minutes. A single sequential worker completes a full catalog pass in roughly 17 hours, while each game is eligible again only after its last successful follower refresh is at least 24 hours old.
+
+For safe rollback, stop the GitHub workflow and unschedule the four sync jobs first. Revert application code and schema through a new declarative schema change/migration; never edit an existing migration file. Active Storage objects remain readable during rollback and can be garbage-collected only after verifying no active database row references them.

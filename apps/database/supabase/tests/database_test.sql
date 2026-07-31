@@ -127,6 +127,8 @@ SELECT has_column('public', 'steam_games', 'release_metadata_updated_at', 'Relea
 SELECT has_column('public', 'steam_games', 'tag_source', 'Steam tag provenance is explicit');
 SELECT has_column('public', 'steam_games', 'tags_updated_at', 'Tag success freshness is tracked');
 SELECT has_column('public', 'steam_games', 'media_updated_at', 'Media success freshness is tracked');
+SELECT has_column('public', 'steam_games', 'follower_count', 'Steam follower count is stored');
+SELECT has_column('public', 'steam_games', 'followers_updated_at', 'Steam follower freshness is tracked');
 SELECT col_is_fk('public', 'steam_game_media', 'steam_app_id', 'Steam media belongs to a catalog game');
 SELECT has_index('public', 'steam_game_media', 'steam_game_media_active_position_idx', 'Only one active media row exists per position');
 SELECT has_function(
