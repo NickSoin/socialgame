@@ -68,7 +68,7 @@ $$;
 GRANT EXECUTE ON FUNCTION tests.set_user_context(uuid) TO authenticated;
 GRANT EXECUTE ON FUNCTION tests.clear_user_context() TO anon, authenticated;
 
-SELECT plan(126);
+SELECT no_plan();
 
 -- =============================================================================
 -- Schema, RLS, grants, and RPC shape
@@ -86,6 +86,24 @@ SELECT has_table('public', 'numeric_predictions', 'numeric predictions table exi
 SELECT has_table('public', 'steam_bets', 'locked Steam bets table exists');
 SELECT has_table('public', 'steam_games', 'Steam wishlist catalog table exists');
 SELECT has_table('public', 'steam_catalog_sync_runs', 'Steam catalog sync history table exists');
+SELECT has_table('public', 'steam_percentile_models', 'versioned percentile models table exists');
+SELECT has_table('public', 'steam_scoring_config', 'global scoring start configuration exists');
+SELECT has_table('public', 'steam_forecast_markets', 'Steam points markets table exists');
+SELECT has_table('public', 'steam_prediction_versions', 'forecast history table exists');
+SELECT has_table('public', 'steam_market_daily_snapshots', 'daily scoring snapshots table exists');
+SELECT has_table('public', 'steam_market_snapshot_predictions', 'immutable snapshot membership exists');
+SELECT has_table('public', 'steam_market_results', 'versioned result audit table exists');
+SELECT has_table('public', 'steam_score_runs', 'score recalculation audit table exists');
+SELECT has_table('public', 'steam_prediction_score_entries', 'daily points entries table exists');
+SELECT has_table('public', 'steam_user_leaderboard_stats', 'materialized points leaderboard exists');
+SELECT has_function(
+  'public', 'submit_steam_prediction', ARRAY['bigint', 'text', 'numeric'],
+  'versioned Steam prediction RPC exists'
+);
+SELECT has_function(
+  'public', 'get_steam_points_leaderboard', ARRAY['text', 'integer', 'integer'],
+  'paginated points leaderboard RPC exists'
+);
 SELECT has_column('public', 'steam_bets', 'game_name', 'Steam bets preserve game names');
 SELECT has_column('public', 'steam_bets', 'release_date', 'Steam bets preserve release dates');
 SELECT has_column('public', 'steam_bets', 'release_label', 'Steam bets preserve release labels');
@@ -201,8 +219,8 @@ SELECT ok(
   'authenticated users can read their locked Steam bets'
 );
 SELECT ok(
-  has_table_privilege('authenticated', 'public.steam_bets', 'INSERT'),
-  'authenticated users can insert a Steam bet'
+  NOT has_table_privilege('authenticated', 'public.steam_bets', 'INSERT'),
+  'authenticated users cannot bypass the versioned Steam prediction RPC'
 );
 SELECT ok(
   NOT has_table_privilege('authenticated', 'public.steam_bets', 'UPDATE'),
@@ -1086,14 +1104,8 @@ VALUES (
 SET LOCAL ROLE authenticated;
 SELECT tests.set_user_context('91111111-1111-4111-8111-111111111111');
 SELECT lives_ok(
-  $$INSERT INTO public.steam_bets (user_id, steam_app_id, target_key, value)
-    VALUES (
-      '91111111-1111-4111-8111-111111111111',
-      4739040,
-      'first_weekend_ccu',
-      90
-    )$$,
-  'a user can lock their own Steam bet'
+  $$SELECT public.submit_steam_prediction(4739040, 'first_weekend_ccu', 100)$$,
+  'a user can create a percentile forecast through the RPC'
 );
 SELECT is(
   (
@@ -1102,20 +1114,41 @@ SELECT is(
     WHERE steam_app_id = 4739040
       AND target_key = 'first_weekend_ccu'
   ),
-  90::numeric,
-  'a user can read their own locked value'
+  100::numeric,
+  'the active projection stores the raw forecast'
 );
-SELECT throws_ok(
-  $$INSERT INTO public.steam_bets (user_id, steam_app_id, target_key, value)
-    VALUES (
-      '91111111-1111-4111-8111-111111111111',
-      4739040,
-      'first_weekend_ccu',
-      91
-    )$$,
-  '23505',
-  NULL,
-  'a second value for the same target is rejected'
+SELECT is(
+  (
+    SELECT percentile_value
+    FROM public.steam_bets
+    WHERE steam_app_id = 4739040 AND target_key = 'first_weekend_ccu'
+  ),
+  14::numeric,
+  'the fixed percentile model is applied at submission time'
+);
+SELECT lives_ok(
+  $$SELECT public.submit_steam_prediction(4739040, 'first_weekend_ccu', 1000)$$,
+  'a forecast can be edited before its market locks'
+);
+SELECT is(
+  (
+    SELECT value FROM public.steam_bets
+    WHERE steam_app_id = 4739040 AND target_key = 'first_weekend_ccu'
+  ),
+  1000::numeric,
+  'editing updates the active projection'
+);
+SELECT is(
+  (
+    SELECT count(*)::integer
+    FROM public.steam_prediction_versions AS version
+    JOIN public.steam_forecast_markets AS market ON market.id = version.market_id
+    WHERE market.steam_app_id = 4739040
+      AND market.metric_type = 'first_weekend_ccu'
+      AND version.user_id = '91111111-1111-4111-8111-111111111111'
+  ),
+  2,
+  'editing preserves both forecast versions'
 );
 SELECT throws_ok(
   $$UPDATE public.steam_bets
@@ -1123,7 +1156,7 @@ SELECT throws_ok(
     WHERE steam_app_id = 4739040$$,
   '42501',
   NULL,
-  'a locked Steam bet cannot be updated'
+  'the active projection still cannot be updated directly'
 );
 SELECT throws_ok(
   $$DELETE FROM public.steam_bets
@@ -1135,14 +1168,8 @@ SELECT throws_ok(
 
 SELECT tests.set_user_context('92222222-2222-4222-8222-222222222222');
 SELECT lives_ok(
-  $$INSERT INTO public.steam_bets (user_id, steam_app_id, target_key, value)
-    VALUES (
-      '92222222-2222-4222-8222-222222222222',
-      4739040,
-      'first_weekend_ccu',
-      80
-    )$$,
-  'another user can lock their own value for the same target'
+  $$SELECT public.submit_steam_prediction(4739040, 'first_weekend_ccu', 500)$$,
+  'another user can submit to the same market'
 );
 SELECT is(
   (
@@ -1155,27 +1182,255 @@ SELECT is(
 );
 SELECT throws_ok(
   $$INSERT INTO public.steam_bets (user_id, steam_app_id, target_key, value)
-    VALUES (
-      '91111111-1111-4111-8111-111111111111',
-      4739040,
-      'first_month_reviews',
-      12
-    )$$,
-  '42501',
-  NULL,
-  'a user cannot create a Steam bet for another account'
+    VALUES ('91111111-1111-4111-8111-111111111111', 4739040, 'first_month_reviews', 12)$$,
+  '42501', NULL,
+  'direct inserts cannot spoof another account'
 );
 SELECT throws_ok(
-  $$INSERT INTO public.steam_bets (user_id, steam_app_id, target_key, value)
-    VALUES (
-      '92222222-2222-4222-8222-222222222222',
-      9990001,
-      'full_price_us',
-      20
-    )$$,
-  '42501',
-  NULL,
-  'a user cannot create a Steam bet for a game outside TopWishlisted'
+  $$SELECT public.submit_steam_prediction(9990001, 'full_price_us', 20)$$,
+  'P0002', NULL,
+  'the RPC rejects games outside TopWishlisted'
+);
+
+RESET ROLE;
+SELECT tests.clear_user_context();
+
+-- Backdate the controlled test history so two UTC snapshots can prove that an
+-- edit starts affecting points only on the next snapshot.
+UPDATE public.steam_scoring_config SET scoring_start_at = date_trunc('day', now()) - interval '2 days';
+UPDATE public.steam_forecast_markets
+SET scoring_start_at = date_trunc('day', now()) - interval '2 days'
+WHERE steam_app_id = 4739040;
+
+WITH ordered AS (
+  SELECT version.id, version.raw_value
+  FROM public.steam_prediction_versions AS version
+  JOIN public.steam_forecast_markets AS market ON market.id = version.market_id
+  WHERE market.steam_app_id = 4739040
+    AND market.metric_type = 'first_weekend_ccu'
+    AND version.user_id = '91111111-1111-4111-8111-111111111111'
+)
+UPDATE public.steam_prediction_versions AS version
+SET
+  valid_from = CASE ordered.raw_value
+    WHEN 100 THEN date_trunc('day', now()) - interval '2 days'
+    ELSE date_trunc('day', now()) - interval '12 hours'
+  END,
+  valid_to = CASE ordered.raw_value
+    WHEN 100 THEN date_trunc('day', now()) - interval '12 hours'
+    ELSE NULL
+  END
+FROM ordered WHERE ordered.id = version.id;
+
+UPDATE public.steam_prediction_versions AS version
+SET valid_from = date_trunc('day', now()) - interval '2 days'
+FROM public.steam_forecast_markets AS market
+WHERE market.id = version.market_id
+  AND market.steam_app_id = 4739040
+  AND market.metric_type = 'first_weekend_ccu'
+  AND version.user_id = '92222222-2222-4222-8222-222222222222';
+
+SELECT lives_ok(
+  $$SELECT public.create_steam_market_snapshots(date_trunc('day', now()) - interval '1 day')$$,
+  'the daily UTC snapshot job can reconstruct an eligible day idempotently'
+);
+SELECT lives_ok(
+  $$SELECT public.create_steam_market_snapshots(date_trunc('day', now()))$$,
+  'the current UTC snapshot is created'
+);
+SELECT is(
+  (
+    SELECT count(*)::integer FROM public.steam_market_daily_snapshots AS snapshot
+    JOIN public.steam_forecast_markets AS market ON market.id = snapshot.market_id
+    WHERE market.steam_app_id = 4739040 AND market.metric_type = 'first_weekend_ccu'
+  ),
+  2,
+  'there are two immutable daily snapshots for the scored market'
+);
+SELECT results_eq(
+  $$
+    SELECT membership.raw_value
+    FROM public.steam_market_snapshot_predictions AS membership
+    JOIN public.steam_market_daily_snapshots AS snapshot ON snapshot.id = membership.snapshot_id
+    JOIN public.steam_forecast_markets AS market ON market.id = snapshot.market_id
+    WHERE market.steam_app_id = 4739040
+      AND market.metric_type = 'first_weekend_ccu'
+      AND membership.user_id = '91111111-1111-4111-8111-111111111111'
+    ORDER BY snapshot.snapshot_date
+  $$,
+  $$VALUES (100::numeric), (1000::numeric)$$,
+  'the old forecast scores on the first day and the edit begins on the next day'
+);
+SELECT results_eq(
+  $$
+    SELECT snapshot.eligible_prediction_count
+    FROM public.steam_market_daily_snapshots AS snapshot
+    JOIN public.steam_forecast_markets AS market ON market.id = snapshot.market_id
+    WHERE market.steam_app_id = 4739040 AND market.metric_type = 'first_weekend_ccu'
+    ORDER BY snapshot.snapshot_date
+  $$,
+  $$VALUES (2), (2)$$,
+  'both days have enough players for leave-one-out scoring'
+);
+
+UPDATE public.steam_forecast_markets
+SET status = 'locked'
+WHERE steam_app_id = 4739040 AND metric_type = 'first_weekend_ccu';
+
+SET LOCAL ROLE authenticated;
+SELECT tests.set_user_context('92222222-2222-4222-8222-222222222222');
+SELECT throws_ok(
+  format(
+    'SELECT public.resolve_steam_forecast_market(%L, 1000, %L, %L, NULL)',
+    (SELECT id FROM public.steam_forecast_markets
+      WHERE steam_app_id = 4739040 AND metric_type = 'first_weekend_ccu'),
+    'test-source', now()
+  ),
+  '42501', NULL,
+  'a non-admin cannot resolve a points market'
+);
+
+RESET ROLE;
+INSERT INTO private.admin_users (user_id)
+VALUES ('91111111-1111-4111-8111-111111111111') ON CONFLICT DO NOTHING;
+SET LOCAL ROLE authenticated;
+SELECT tests.set_user_context('91111111-1111-4111-8111-111111111111');
+SELECT lives_ok(
+  format(
+    'SELECT public.resolve_steam_forecast_market(%L, 1000, %L, %L, NULL)',
+    (SELECT id FROM public.steam_forecast_markets
+      WHERE steam_app_id = 4739040 AND metric_type = 'first_weekend_ccu'),
+    'test-source', date_trunc('second', now())
+  ),
+  'an admin can resolve a locked points market'
+);
+
+RESET ROLE;
+SELECT is(
+  (
+    SELECT count(*)::integer FROM public.steam_prediction_score_entries AS entry
+    JOIN public.steam_score_runs AS run ON run.id = entry.score_run_id AND run.is_current = true
+    JOIN public.steam_forecast_markets AS market ON market.id = entry.market_id
+    WHERE market.steam_app_id = 4739040 AND market.metric_type = 'first_weekend_ccu'
+  ),
+  4,
+  'resolution writes one leave-one-out entry per eligible player-day'
+);
+SELECT is(
+  (
+    SELECT points FROM public.steam_user_leaderboard_stats
+    WHERE user_id = '92222222-2222-4222-8222-222222222222' AND metric_type = 'all'
+  ),
+  4::numeric,
+  'daily leave-one-out points are summed into the all-metrics leaderboard'
+);
+SELECT is(
+  (
+    SELECT sum(points) FROM public.steam_user_leaderboard_stats WHERE metric_type = 'all'
+  ),
+  0::numeric,
+  'the two-player leave-one-out score is zero-sum for this fixture'
+);
+
+SET LOCAL ROLE authenticated;
+SELECT tests.set_user_context('91111111-1111-4111-8111-111111111111');
+SELECT lives_ok(
+  format(
+    'SELECT public.resolve_steam_forecast_market(%L, 1000, %L, %L, NULL)',
+    (SELECT id FROM public.steam_forecast_markets
+      WHERE steam_app_id = 4739040 AND metric_type = 'first_weekend_ccu'),
+    'test-source',
+    (SELECT resolved_at FROM public.steam_market_results AS result
+      JOIN public.steam_forecast_markets AS market ON market.id = result.market_id
+      WHERE market.steam_app_id = 4739040 AND result.is_current = true)
+  ),
+  'repeating an identical result is idempotent'
+);
+RESET ROLE;
+SELECT is(
+  (
+    SELECT count(*)::integer FROM public.steam_market_results AS result
+    JOIN public.steam_forecast_markets AS market ON market.id = result.market_id
+    WHERE market.steam_app_id = 4739040 AND market.metric_type = 'first_weekend_ccu'
+  ),
+  1,
+  'idempotent resolution does not create a second result version'
+);
+
+SET LOCAL ROLE authenticated;
+SELECT tests.set_user_context('91111111-1111-4111-8111-111111111111');
+SELECT lives_ok(
+  format(
+    'SELECT public.resolve_steam_forecast_market(%L, 500, %L, %L, %L)',
+    (SELECT id FROM public.steam_forecast_markets
+      WHERE steam_app_id = 4739040 AND metric_type = 'first_weekend_ccu'),
+    'corrected-source', now(), 'fixture correction'
+  ),
+  'a corrected trusted result creates a new audited score run'
+);
+RESET ROLE;
+SELECT ok(
+  (
+    SELECT count(*) = 2 AND count(*) FILTER (WHERE is_current) = 1
+    FROM public.steam_market_results AS result
+    JOIN public.steam_forecast_markets AS market ON market.id = result.market_id
+    WHERE market.steam_app_id = 4739040 AND market.metric_type = 'first_weekend_ccu'
+  )
+  AND (
+    SELECT count(*) = 2 AND count(*) FILTER (WHERE run.is_current) = 1
+    FROM public.steam_score_runs AS run
+    JOIN public.steam_forecast_markets AS market ON market.id = run.market_id
+    WHERE market.steam_app_id = 4739040 AND market.metric_type = 'first_weekend_ccu'
+  ),
+  'correction keeps the old result and score run for audit while selecting one current version'
+);
+SELECT is(
+  (
+    SELECT points FROM public.steam_user_leaderboard_stats
+    WHERE user_id = '92222222-2222-4222-8222-222222222222' AND metric_type = 'all'
+  ),
+  20::numeric,
+  'leaderboard totals are rebuilt from the corrected current score run'
+);
+
+SET LOCAL ROLE authenticated;
+SELECT tests.set_user_context('91111111-1111-4111-8111-111111111111');
+SELECT ok(
+  EXISTS (
+    SELECT 1 FROM public.get_steam_points_leaderboard('all', 1, 0)
+    WHERE is_current_user = true AND is_page_member = false
+  ),
+  'the current user is returned even when outside the requested leaderboard page'
+);
+SELECT lives_ok(
+  format(
+    'SELECT public.recalculate_steam_forecast_market(%L, %L)',
+    (SELECT id FROM public.steam_forecast_markets
+      WHERE steam_app_id = 4739040 AND metric_type = 'first_weekend_ccu'),
+    'test replay'
+  ),
+  'an audited recalculation can be replayed without duplicating active points'
+);
+RESET ROLE;
+SELECT is(
+  (
+    SELECT count(*)::integer FROM public.steam_score_runs AS run
+    JOIN public.steam_forecast_markets AS market ON market.id = run.market_id
+    WHERE market.steam_app_id = 4739040
+      AND market.metric_type = 'first_weekend_ccu' AND run.is_current = true
+  ),
+  1,
+  'exactly one score run remains current after recalculation'
+);
+
+UPDATE public.steam_forecast_markets SET status = 'locked'
+WHERE steam_app_id = 4739040 AND metric_type = 'first_month_reviews';
+SET LOCAL ROLE authenticated;
+SELECT tests.set_user_context('92222222-2222-4222-8222-222222222222');
+SELECT throws_ok(
+  $$SELECT public.submit_steam_prediction(4739040, 'first_month_reviews', 12)$$,
+  '22023', NULL,
+  'submissions that race with market locking are rejected atomically'
 );
 
 RESET ROLE;

@@ -9,7 +9,7 @@ export function HomeTabs() {
   const links = [
     { href: '/trending', label: 'Trending', icon: TrendingUp },
     { href: '/', label: 'Popular upcoming', icon: CalendarDays },
-    { href: '/involved', label: 'Involved', icon: CircleDot },
+    { href: '/involved', label: 'My forecasts', icon: CircleDot },
   ];
 
   return (

@@ -15,6 +15,13 @@ const game = (appId: number, name: string): SteamUpcomingGame => ({
     averageValue: null,
     predictionCount: 0,
     userValue: null,
+    userPercentile: null,
+    marketStatus: "open",
+    lockAt: null,
+    actualValue: null,
+    actualPercentile: null,
+    points: 0,
+    scoredDays: 0,
   })),
 });
 
@@ -139,6 +146,38 @@ describe("buildSteamFeed", () => {
     expect(games[0]?.targets[0]).toMatchObject({
       averageValue: 200,
       predictionCount: 7_000_000,
+    });
+  });
+
+  it("hydrates a card with the user's percentile, lifecycle, result, and points", () => {
+    const games = buildSteamFeed({
+      mode: "upcoming",
+      liveGames: [game(1, "One")],
+      bets: [],
+      trends: [],
+      states: [{
+        steam_app_id: 1,
+        metric_type: "first_weekend_ccu",
+        market_status: "resolved",
+        lock_at: "2026-08-01T00:00:00Z",
+        resolve_after: "2026-08-03T00:00:00Z",
+        user_raw_value: 1000,
+        user_percentile_value: 34,
+        actual_raw_value: 500,
+        actual_percentile_value: 26,
+        points: 4,
+        scored_days: 2,
+      }],
+    });
+
+    expect(games[0]?.targets[0]).toMatchObject({
+      userValue: 1000,
+      userPercentile: 34,
+      marketStatus: "resolved",
+      actualValue: 500,
+      actualPercentile: 26,
+      points: 4,
+      scoredDays: 2,
     });
   });
 });

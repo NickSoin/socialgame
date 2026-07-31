@@ -34,6 +34,10 @@ function ForecastField({
     target.userValue === null ? "idle" : "committed",
   );
   const [draft, setDraft] = useState(target.userValue === null ? "" : String(target.userValue));
+  const [savedDraft, setSavedDraft] = useState(
+    target.userValue === null ? "" : String(target.userValue),
+  );
+  const [savedPercentile, setSavedPercentile] = useState(target.userPercentile);
   const [errorMessage, setErrorMessage] = useState("");
   const submittedValue = useRef<string | null>(
     target.userValue === null ? null : String(target.userValue),
@@ -42,9 +46,11 @@ function ForecastField({
 
   const { execute, status } = useAction(placeSteamBetAction, {
     onExecute: () => setErrorMessage(""),
-    onSuccess: () => {
+    onSuccess: ({ data }) => {
       if (submittedValue.current === null) return;
       setDraft(String(submittedValue.current));
+      setSavedDraft(String(submittedValue.current));
+      setSavedPercentile(data?.percentile_value === undefined ? null : Number(data.percentile_value));
       setMode("committed");
     },
     onError: ({ error }) => {
@@ -54,13 +60,15 @@ function ForecastField({
 
   const value = parseSteamBetDraft(target.key, draft);
   const isValid = value !== null;
+  const canEdit = target.marketStatus === "open";
+  const hasSavedValue = savedDraft !== "";
 
   return (
     <form
       className={`sb-forecast-field is-${mode}`}
       onSubmit={(event) => {
         event.preventDefault();
-        if (!isAuthenticated || mode !== "editing" || !isValid || status === "executing") return;
+        if (!isAuthenticated || !canEdit || mode !== "editing" || !isValid || status === "executing") return;
         submittedValue.current = draft;
         execute({ steamAppId: appId, targetKey: target.key, value: draft });
       }}
@@ -71,21 +79,21 @@ function ForecastField({
           <input
             id={inputId}
             aria-label={`${target.label} for ${gameName}`}
-            aria-readonly={mode === "committed"}
+            aria-readonly={mode === "committed" || !canEdit}
             autoComplete="off"
-            disabled={!isAuthenticated}
+            disabled={!isAuthenticated || !canEdit}
             inputMode={target.step === 1 ? "numeric" : "decimal"}
             maxLength={target.maxLength}
             name={`${appId}-${target.key}`}
             pattern={target.step === 1 ? "[0-9]*" : "[0-9]+([.][0-9]+)?"}
-            readOnly={mode === "committed"}
+            readOnly={mode === "committed" || !canEdit}
             type="text"
             value={draft}
             onChange={(event) => {
               setDraft(sanitizeSteamBetDraft(target.key, event.target.value));
             }}
             onFocus={() => {
-              if (mode === "idle" && isAuthenticated) setMode("editing");
+              if (mode !== "editing" && isAuthenticated && canEdit) setMode("editing");
             }}
           />
         </div>
@@ -94,6 +102,21 @@ function ForecastField({
           <span>{compactNumber.format(target.predictionCount)} Vol.</span>
         </div>
       </div>
+      {hasSavedValue && target.marketStatus === "open" && savedPercentile !== null && (
+        <p className="sb-forecast-result">P{Math.round(savedPercentile)} percentile</p>
+      )}
+      {target.marketStatus === "locked" && (
+        <p className="sb-forecast-result">Locked{savedPercentile === null ? "" : ` · P${Math.round(savedPercentile)}`}</p>
+      )}
+      {target.marketStatus === "resolved" && (
+        <p
+          className="sb-forecast-result is-resolved"
+          title={`Across ${target.scoredDays} scored day${target.scoredDays === 1 ? "" : "s"}: distance of the other players' average from the result, minus your distance from the result.`}
+        >
+          Actual {formatAverage(target.actualValue)} · {target.points >= 0 ? "+" : ""}{target.points.toFixed(1)} pts
+        </p>
+      )}
+      {target.marketStatus === "void" && <p className="sb-forecast-result">Void</p>}
       {mode === "editing" && (
         <div className="sb-bet-actions">
           <button
@@ -112,10 +135,10 @@ function ForecastField({
             title="Cancel"
             type="button"
             onClick={() => {
-              submittedValue.current = null;
-              setDraft("");
+              submittedValue.current = savedDraft === "" ? null : savedDraft;
+              setDraft(savedDraft);
               setErrorMessage("");
-              setMode("idle");
+              setMode(savedDraft === "" ? "idle" : "committed");
             }}
           >
             ×

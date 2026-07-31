@@ -10,7 +10,6 @@ import {
   STEAM_BET_INPUT_LIMITS,
   STEAM_BET_TARGET_KEYS,
 } from '@/lib/steam-bets';
-import { getOpenSteamCatalogGame } from '@/data/steam-game-catalog';
 import { publicNicknameSchema } from '@/lib/public-nickname';
 
 const outcomeSchema = z.enum(['yes', 'no']);
@@ -23,7 +22,7 @@ export const placeSteamBetAction = authActionClient
       value: z.string().trim().min(1).max(Math.max(...Object.values(STEAM_BET_INPUT_LIMITS))),
     }),
   )
-  .action(async ({ parsedInput, ctx }) => {
+  .action(async ({ parsedInput }) => {
     const value = parseSteamBetDraft(parsedInput.targetKey, parsedInput.value);
     if (value === null) {
       throw new Error(
@@ -31,34 +30,20 @@ export const placeSteamBetAction = authActionClient
       );
     }
 
-    const { game } = await getOpenSteamCatalogGame(parsedInput.steamAppId);
-    if (!game) throw new Error('This game is no longer open for predictions.');
-
     const supabase = await createSupabaseClient();
     const { data, error } = await supabase
-      .from('steam_bets')
-      .insert({
-        steam_app_id: parsedInput.steamAppId,
-        target_key: parsedInput.targetKey,
-        user_id: ctx.userId,
-        value,
-        game_name: game.name,
-        release_date: game.releaseDate,
-        release_label: game.releaseLabel,
-        image_url: game.imageUrl,
-      })
-      .select('steam_app_id,target_key,value')
-      .single();
+      .rpc('submit_steam_prediction', {
+        p_steam_app_id: parsedInput.steamAppId,
+        p_metric_type: parsedInput.targetKey,
+        p_raw_value: value,
+      });
 
-    if (error?.code === '23505') {
-      throw new Error('This prediction is already locked.');
-    }
     if (error) throw new Error(error.message);
 
     revalidatePath('/');
     revalidatePath('/trending');
     revalidatePath('/involved');
-    return data;
+    return data?.[0] ?? null;
   });
 
 export const saveForecastAction = authActionClient

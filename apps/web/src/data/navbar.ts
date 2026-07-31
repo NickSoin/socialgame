@@ -4,7 +4,7 @@ import { createSupabaseClient } from '@/supabase-clients/server';
 export type NavbarViewer = {
   username: string;
   bets: number;
-  wins: number;
+  points: number;
 } | null;
 
 export async function getNavbarViewer(): Promise<NavbarViewer> {
@@ -13,25 +13,32 @@ export async function getNavbarViewer(): Promise<NavbarViewer> {
   const userId = claimsData?.claims?.sub;
   if (!userId) return null;
 
-  const [profileResult, betsResult] = await Promise.all([
+  const [profileResult, betsResult, pointsResult] = await Promise.all([
     supabase
       .from('profiles')
-      .select('username,correct_predictions')
+      .select('username')
       .eq('id', userId)
       .maybeSingle(),
     supabase
       .from('steam_bets')
       .select('*', { count: 'exact', head: true })
       .eq('user_id', userId),
+    supabase
+      .from('steam_user_leaderboard_stats')
+      .select('points')
+      .eq('user_id', userId)
+      .eq('metric_type', 'all')
+      .maybeSingle(),
   ]);
 
   if (profileResult.error) throw new Error(profileResult.error.message);
   if (betsResult.error) throw new Error(betsResult.error.message);
+  if (pointsResult.error) throw new Error(pointsResult.error.message);
   if (!profileResult.data) return null;
 
   return {
     username: profileResult.data.username,
     bets: betsResult.count ?? 0,
-    wins: profileResult.data.correct_predictions,
+    points: Number(pointsResult.data?.points ?? 0),
   };
 }

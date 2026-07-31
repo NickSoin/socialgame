@@ -2,6 +2,7 @@ import { notFound } from 'next/navigation';
 import { Suspense } from 'react';
 import { PublicNicknameForm } from '@/components/steambets/public-nickname-form';
 import { getCurrentUserContext, getProfileByUsername } from '@/data/gamecast';
+import { getSteamProfilePoints } from '@/data/steam-leaderboard';
 
 async function PublicProfileContent({
   params,
@@ -17,6 +18,8 @@ async function PublicProfileContent({
   ]);
   if (!profile) notFound();
   const isOwner = viewer.user?.id === profile.id;
+  const points = await getSteamProfilePoints(profile.id);
+  const overall = points.find((row) => row.metric === 'all');
 
   return (
     <main id="main-content" className="sb-shell sb-profile-page">
@@ -25,6 +28,12 @@ async function PublicProfileContent({
           <h1 id="profile-name">{profile.display_name}</h1>
           <p>@{profile.username}</p>
         </div>
+        <dl className="sb-profile-points">
+          <div><dt>Points</dt><dd>{overall?.points.toFixed(1) ?? '0.0'}</dd></div>
+          <div><dt>Rank</dt><dd>{overall ? `#${overall.rank}` : '—'}</dd></div>
+          <div><dt>Scored days</dt><dd>{overall?.scoredDays ?? 0}</dd></div>
+          <div><dt>Resolved markets</dt><dd>{overall?.resolvedMarkets ?? 0}</dd></div>
+        </dl>
         {isOwner && <PublicNicknameForm nickname={profile.display_name} />}
       </section>
     </main>

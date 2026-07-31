@@ -27,6 +27,13 @@ const game: SteamUpcomingGame = {
     averageValue: 200,
     predictionCount: 7_000_000,
     userValue: null,
+    userPercentile: null,
+    marketStatus: "open",
+    lockAt: null,
+    actualValue: null,
+    actualPercentile: null,
+    points: 0,
+    scoredDays: 0,
   })),
 };
 
@@ -165,5 +172,44 @@ describe("ForecastCard", () => {
     expect(
       screen.queryByRole("button", { name: "Confirm First weekend peak CCU prediction" }),
     ).toBeNull();
+  });
+
+  it("shows the percentile and lets an open saved forecast be edited", () => {
+    const predicted = {
+      ...game,
+      targets: game.targets.map((target, index) => index === 0
+        ? { ...target, userValue: 1000, userPercentile: 34 }
+        : target),
+    };
+    render(<ForecastCard game={predicted} isAuthenticated />);
+
+    expect(screen.getByText("P34 percentile")).toBeTruthy();
+    const input = screen.getByRole("textbox", {
+      name: "First weekend peak CCU for Input Limit Test",
+    }) as HTMLInputElement;
+    expect(input.readOnly).toBe(true);
+    fireEvent.focus(input);
+    expect(input.readOnly).toBe(false);
+    expect(
+      screen.getByRole("button", { name: "Confirm First weekend peak CCU prediction" }),
+    ).toBeTruthy();
+  });
+
+  it("disables locked forecasts and renders resolved actuals and points", () => {
+    const closed = {
+      ...game,
+      targets: game.targets.map((target, index) => index === 0
+        ? { ...target, userValue: 500, userPercentile: 26, marketStatus: "locked" as const }
+        : index === 1
+          ? { ...target, userValue: 400, marketStatus: "resolved" as const, actualValue: 650, points: 7.25 }
+          : target),
+    };
+    render(<ForecastCard game={closed} isAuthenticated />);
+
+    expect(screen.getByText("Locked · P26")).toBeTruthy();
+    expect(screen.getByText("Actual 650 · +7.3 pts")).toBeTruthy();
+    expect(screen.getByRole("textbox", {
+      name: "First weekend peak CCU for Input Limit Test",
+    })).toHaveProperty("disabled", true);
   });
 });

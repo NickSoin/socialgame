@@ -16,6 +16,13 @@ export type SteamBetTarget = {
   predictionCount: number;
   step: number;
   userValue: number | null;
+  userPercentile: number | null;
+  marketStatus: "open" | "locked" | "resolved" | "void";
+  lockAt: string | null;
+  actualValue: number | null;
+  actualPercentile: number | null;
+  points: number;
+  scoredDays: number;
 };
 
 export type SteamUpcomingGame = {
@@ -33,11 +40,26 @@ export type SteamBetRow = {
   steam_app_id: number;
   target_key: SteamBetTargetKey;
   value: number;
+  percentile_value?: number | null;
   created_at: string;
   game_name: string | null;
   release_date: string | null;
   release_label: string | null;
   image_url: string | null;
+};
+
+export type SteamPredictionState = {
+  steam_app_id: number;
+  metric_type: SteamBetTargetKey;
+  market_status: "open" | "locked" | "resolved" | "void";
+  lock_at: string | null;
+  resolve_after: string | null;
+  user_raw_value: number | null;
+  user_percentile_value: number | null;
+  actual_raw_value: number | null;
+  actual_percentile_value: number | null;
+  points: number;
+  scored_days: number;
 };
 
 export type SteamBetTrend = {
@@ -99,7 +121,19 @@ export function parseSteamBetDraft(targetKey: SteamBetTargetKey, rawValue: strin
 }
 
 export const STEAM_BET_TARGETS: ReadonlyArray<
-  Omit<SteamBetTarget, "averageValue" | "predictionCount" | "userValue">
+  Omit<
+    SteamBetTarget,
+    | "averageValue"
+    | "predictionCount"
+    | "userValue"
+    | "userPercentile"
+    | "marketStatus"
+    | "lockAt"
+    | "actualValue"
+    | "actualPercentile"
+    | "points"
+    | "scoredDays"
+  >
 > = [
   {
     key: "first_weekend_ccu",

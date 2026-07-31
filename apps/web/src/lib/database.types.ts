@@ -359,10 +359,13 @@ export type Database = {
           game_name: string | null
           id: string
           image_url: string | null
+          percentile_model_version: number | null
+          percentile_value: number | null
           release_date: string | null
           release_label: string | null
           steam_app_id: number
           target_key: string
+          updated_at: string
           user_id: string
           value: number
         }
@@ -371,10 +374,13 @@ export type Database = {
           game_name?: string | null
           id?: string
           image_url?: string | null
+          percentile_model_version?: number | null
+          percentile_value?: number | null
           release_date?: string | null
           release_label?: string | null
           steam_app_id: number
           target_key: string
+          updated_at?: string
           user_id: string
           value: number
         }
@@ -383,10 +389,13 @@ export type Database = {
           game_name?: string | null
           id?: string
           image_url?: string | null
+          percentile_model_version?: number | null
+          percentile_value?: number | null
           release_date?: string | null
           release_label?: string | null
           steam_app_id?: number
           target_key?: string
+          updated_at?: string
           user_id?: string
           value?: number
         }
@@ -439,6 +448,72 @@ export type Database = {
           status?: string
         }
         Relationships: []
+      }
+      steam_forecast_markets: {
+        Row: {
+          created_at: string
+          id: string
+          lock_at: string | null
+          metric_type: string
+          percentile_model_id: string
+          percentile_model_version: number
+          resolve_after: string | null
+          scoring_start_at: string
+          source_release_date: string | null
+          status: string
+          steam_app_id: number
+          updated_at: string
+          void_reason: string | null
+          voided_at: string | null
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          lock_at?: string | null
+          metric_type: string
+          percentile_model_id: string
+          percentile_model_version: number
+          resolve_after?: string | null
+          scoring_start_at: string
+          source_release_date?: string | null
+          status?: string
+          steam_app_id: number
+          updated_at?: string
+          void_reason?: string | null
+          voided_at?: string | null
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          lock_at?: string | null
+          metric_type?: string
+          percentile_model_id?: string
+          percentile_model_version?: number
+          resolve_after?: string | null
+          scoring_start_at?: string
+          source_release_date?: string | null
+          status?: string
+          steam_app_id?: number
+          updated_at?: string
+          void_reason?: string | null
+          voided_at?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "steam_forecast_markets_percentile_model_id_fkey"
+            columns: ["percentile_model_id"]
+            isOneToOne: false
+            referencedRelation: "steam_percentile_models"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "steam_forecast_markets_steam_app_id_fkey"
+            columns: ["steam_app_id"]
+            isOneToOne: false
+            referencedRelation: "steam_games"
+            referencedColumns: ["steam_app_id"]
+          },
+        ]
       }
       steam_games: {
         Row: {
@@ -512,6 +587,452 @@ export type Database = {
         }
         Relationships: []
       }
+      steam_market_daily_snapshots: {
+        Row: {
+          created_at: string
+          crowd_percentile: number | null
+          eligible_prediction_count: number
+          id: string
+          market_id: string
+          snapshot_at: string
+          snapshot_date: string
+        }
+        Insert: {
+          created_at?: string
+          crowd_percentile?: number | null
+          eligible_prediction_count?: number
+          id?: string
+          market_id: string
+          snapshot_at: string
+          snapshot_date: string
+        }
+        Update: {
+          created_at?: string
+          crowd_percentile?: number | null
+          eligible_prediction_count?: number
+          id?: string
+          market_id?: string
+          snapshot_at?: string
+          snapshot_date?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "steam_market_daily_snapshots_market_id_fkey"
+            columns: ["market_id"]
+            isOneToOne: false
+            referencedRelation: "steam_forecast_markets"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      steam_market_results: {
+        Row: {
+          actual_percentile_value: number
+          actual_raw_value: number
+          correction_note: string | null
+          created_at: string
+          created_by: string | null
+          id: string
+          is_current: boolean
+          market_id: string
+          resolved_at: string
+          result_version: number
+          source_reference: string
+        }
+        Insert: {
+          actual_percentile_value: number
+          actual_raw_value: number
+          correction_note?: string | null
+          created_at?: string
+          created_by?: string | null
+          id?: string
+          is_current?: boolean
+          market_id: string
+          resolved_at: string
+          result_version: number
+          source_reference: string
+        }
+        Update: {
+          actual_percentile_value?: number
+          actual_raw_value?: number
+          correction_note?: string | null
+          created_at?: string
+          created_by?: string | null
+          id?: string
+          is_current?: boolean
+          market_id?: string
+          resolved_at?: string
+          result_version?: number
+          source_reference?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "steam_market_results_created_by_fkey"
+            columns: ["created_by"]
+            isOneToOne: false
+            referencedRelation: "leaderboard"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "steam_market_results_created_by_fkey"
+            columns: ["created_by"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "steam_market_results_market_id_fkey"
+            columns: ["market_id"]
+            isOneToOne: false
+            referencedRelation: "steam_forecast_markets"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      steam_market_snapshot_predictions: {
+        Row: {
+          percentile_value: number
+          prediction_version_id: string
+          raw_value: number
+          snapshot_id: string
+          user_id: string
+        }
+        Insert: {
+          percentile_value: number
+          prediction_version_id: string
+          raw_value: number
+          snapshot_id: string
+          user_id: string
+        }
+        Update: {
+          percentile_value?: number
+          prediction_version_id?: string
+          raw_value?: number
+          snapshot_id?: string
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "steam_market_snapshot_predictions_prediction_version_id_fkey"
+            columns: ["prediction_version_id"]
+            isOneToOne: false
+            referencedRelation: "steam_prediction_versions"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "steam_market_snapshot_predictions_snapshot_id_fkey"
+            columns: ["snapshot_id"]
+            isOneToOne: false
+            referencedRelation: "steam_market_daily_snapshots"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "steam_market_snapshot_predictions_user_id_fkey"
+            columns: ["user_id"]
+            isOneToOne: false
+            referencedRelation: "leaderboard"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "steam_market_snapshot_predictions_user_id_fkey"
+            columns: ["user_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      steam_percentile_models: {
+        Row: {
+          created_at: string
+          dataset_reference: string
+          id: string
+          is_active: boolean
+          metric_type: string
+          model_version: number
+          reference_values: number[]
+          sample_size: number
+        }
+        Insert: {
+          created_at?: string
+          dataset_reference: string
+          id?: string
+          is_active?: boolean
+          metric_type: string
+          model_version: number
+          reference_values: number[]
+          sample_size: number
+        }
+        Update: {
+          created_at?: string
+          dataset_reference?: string
+          id?: string
+          is_active?: boolean
+          metric_type?: string
+          model_version?: number
+          reference_values?: number[]
+          sample_size?: number
+        }
+        Relationships: []
+      }
+      steam_prediction_score_entries: {
+        Row: {
+          actual_percentile: number
+          created_at: string
+          crowd_without_user_percentile: number
+          id: string
+          market_id: string
+          points: number
+          score_run_id: string
+          snapshot_id: string
+          user_id: string
+          user_percentile: number
+        }
+        Insert: {
+          actual_percentile: number
+          created_at?: string
+          crowd_without_user_percentile: number
+          id?: string
+          market_id: string
+          points: number
+          score_run_id: string
+          snapshot_id: string
+          user_id: string
+          user_percentile: number
+        }
+        Update: {
+          actual_percentile?: number
+          created_at?: string
+          crowd_without_user_percentile?: number
+          id?: string
+          market_id?: string
+          points?: number
+          score_run_id?: string
+          snapshot_id?: string
+          user_id?: string
+          user_percentile?: number
+        }
+        Relationships: [
+          {
+            foreignKeyName: "steam_prediction_score_entries_market_id_fkey"
+            columns: ["market_id"]
+            isOneToOne: false
+            referencedRelation: "steam_forecast_markets"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "steam_prediction_score_entries_score_run_id_fkey"
+            columns: ["score_run_id"]
+            isOneToOne: false
+            referencedRelation: "steam_score_runs"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "steam_prediction_score_entries_snapshot_id_fkey"
+            columns: ["snapshot_id"]
+            isOneToOne: false
+            referencedRelation: "steam_market_daily_snapshots"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "steam_prediction_score_entries_user_id_fkey"
+            columns: ["user_id"]
+            isOneToOne: false
+            referencedRelation: "leaderboard"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "steam_prediction_score_entries_user_id_fkey"
+            columns: ["user_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      steam_prediction_versions: {
+        Row: {
+          created_at: string
+          id: string
+          market_id: string
+          percentile_model_version: number
+          percentile_value: number
+          raw_value: number
+          user_id: string
+          valid_from: string
+          valid_to: string | null
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          market_id: string
+          percentile_model_version: number
+          percentile_value: number
+          raw_value: number
+          user_id: string
+          valid_from?: string
+          valid_to?: string | null
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          market_id?: string
+          percentile_model_version?: number
+          percentile_value?: number
+          raw_value?: number
+          user_id?: string
+          valid_from?: string
+          valid_to?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "steam_prediction_versions_market_id_fkey"
+            columns: ["market_id"]
+            isOneToOne: false
+            referencedRelation: "steam_forecast_markets"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "steam_prediction_versions_user_id_fkey"
+            columns: ["user_id"]
+            isOneToOne: false
+            referencedRelation: "leaderboard"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "steam_prediction_versions_user_id_fkey"
+            columns: ["user_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      steam_score_runs: {
+        Row: {
+          created_at: string
+          created_by: string | null
+          id: string
+          is_current: boolean
+          market_id: string
+          reason: string
+          result_id: string
+          run_version: number
+        }
+        Insert: {
+          created_at?: string
+          created_by?: string | null
+          id?: string
+          is_current?: boolean
+          market_id: string
+          reason: string
+          result_id: string
+          run_version: number
+        }
+        Update: {
+          created_at?: string
+          created_by?: string | null
+          id?: string
+          is_current?: boolean
+          market_id?: string
+          reason?: string
+          result_id?: string
+          run_version?: number
+        }
+        Relationships: [
+          {
+            foreignKeyName: "steam_score_runs_created_by_fkey"
+            columns: ["created_by"]
+            isOneToOne: false
+            referencedRelation: "leaderboard"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "steam_score_runs_created_by_fkey"
+            columns: ["created_by"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "steam_score_runs_market_id_fkey"
+            columns: ["market_id"]
+            isOneToOne: false
+            referencedRelation: "steam_forecast_markets"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "steam_score_runs_result_id_fkey"
+            columns: ["result_id"]
+            isOneToOne: false
+            referencedRelation: "steam_market_results"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      steam_scoring_config: {
+        Row: {
+          created_at: string
+          scoring_start_at: string
+          singleton: boolean
+        }
+        Insert: {
+          created_at?: string
+          scoring_start_at: string
+          singleton?: boolean
+        }
+        Update: {
+          created_at?: string
+          scoring_start_at?: string
+          singleton?: boolean
+        }
+        Relationships: []
+      }
+      steam_user_leaderboard_stats: {
+        Row: {
+          metric_type: string
+          points: number
+          rank_position: number
+          resolved_markets: number
+          scored_days: number
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          metric_type: string
+          points?: number
+          rank_position: number
+          resolved_markets?: number
+          scored_days?: number
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          metric_type?: string
+          points?: number
+          rank_position?: number
+          resolved_markets?: number
+          scored_days?: number
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "steam_user_leaderboard_stats_user_id_fkey"
+            columns: ["user_id"]
+            isOneToOne: false
+            referencedRelation: "leaderboard"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "steam_user_leaderboard_stats_user_id_fkey"
+            columns: ["user_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
     }
     Views: {
       leaderboard: {
@@ -534,6 +1055,11 @@ export type Database = {
       }
     }
     Functions: {
+      create_steam_market_snapshots: {
+        Args: { p_snapshot_at?: string }
+        Returns: number
+      }
+      ensure_steam_points_system: { Args: never; Returns: undefined }
       get_forecast_leaderboard: {
         Args: { p_period?: string }
         Returns: {
@@ -575,7 +1101,51 @@ export type Database = {
           steam_app_id: number
         }[]
       }
+      get_steam_points_leaderboard: {
+        Args: { p_limit?: number; p_metric_type?: string; p_offset?: number }
+        Returns: {
+          avatar_id: Database["public"]["Enums"]["avatar_id"]
+          display_name: string
+          is_current_user: boolean
+          is_page_member: boolean
+          points: number
+          rank_position: number
+          resolved_markets: number
+          scored_days: number
+          total_rows: number
+          user_id: string
+          username: string
+        }[]
+      }
+      get_steam_prediction_states: {
+        Args: { p_steam_app_ids?: number[] }
+        Returns: {
+          actual_percentile_value: number
+          actual_raw_value: number
+          lock_at: string
+          market_status: string
+          metric_type: string
+          points: number
+          resolve_after: string
+          scored_days: number
+          steam_app_id: number
+          user_percentile_value: number
+          user_raw_value: number
+        }[]
+      }
+      get_steam_resolution_queue: {
+        Args: never
+        Returns: {
+          game_name: string
+          market_id: string
+          metric_type: string
+          resolve_after: string
+          status: string
+          steam_app_id: number
+        }[]
+      }
       is_current_user_admin: { Args: never; Returns: boolean }
+      lock_due_steam_forecast_markets: { Args: never; Returns: number }
       place_prediction: {
         Args: { p_market_id: string; p_outcome: string; p_stake: number }
         Returns: {
@@ -597,6 +1167,12 @@ export type Database = {
           isOneToOne: true
           isSetofReturn: false
         }
+      }
+      process_steam_market_cycle: { Args: never; Returns: Json }
+      rebuild_steam_leaderboard_stats: { Args: never; Returns: number }
+      recalculate_steam_forecast_market: {
+        Args: { p_market_id: string; p_reason?: string }
+        Returns: number
       }
       resolve_market: {
         Args: { p_market_id: string; p_outcome: string }
@@ -626,6 +1202,59 @@ export type Database = {
           isSetofReturn: false
         }
       }
+      resolve_steam_forecast_market: {
+        Args: {
+          p_actual_raw_value: number
+          p_correction_note?: string
+          p_market_id: string
+          p_resolved_at?: string
+          p_source_reference: string
+        }
+        Returns: {
+          actual_percentile_value: number
+          actual_raw_value: number
+          correction_note: string | null
+          created_at: string
+          created_by: string | null
+          id: string
+          is_current: boolean
+          market_id: string
+          resolved_at: string
+          result_version: number
+          source_reference: string
+        }
+        SetofOptions: {
+          from: "*"
+          to: "steam_market_results"
+          isOneToOne: true
+          isSetofReturn: false
+        }
+      }
+      steam_percentile_value: {
+        Args: {
+          p_metric_type: string
+          p_model_version: number
+          p_raw_value: number
+        }
+        Returns: number
+      }
+      submit_steam_prediction: {
+        Args: {
+          p_metric_type: string
+          p_raw_value: number
+          p_steam_app_id: number
+        }
+        Returns: {
+          lock_at: string
+          market_status: string
+          metric_type: string
+          percentile_value: number
+          raw_value: number
+          steam_app_id: number
+          updated_at: string
+        }[]
+      }
+      sync_steam_forecast_markets: { Args: never; Returns: number }
       update_own_profile: {
         Args: {
           p_avatar_id: string
@@ -673,6 +1302,10 @@ export type Database = {
           isOneToOne: true
           isSetofReturn: false
         }
+      }
+      void_steam_forecast_market: {
+        Args: { p_market_id: string; p_reason: string }
+        Returns: undefined
       }
     }
     Enums: {

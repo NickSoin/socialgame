@@ -10,11 +10,20 @@ const jobs = [
   ["sync-steam-popular-every-2-hours", "17 */2 * * *", "sync-steam-popular"],
   ["sync-steam-details-every-10-minutes", "2,12,22,32,42,52 * * * *", "sync-steam-details"],
 ];
+const databaseJobs = [
+  ["steam-market-cycle-every-5-minutes", "*/5 * * * *", "SELECT public.process_steam_market_cycle()"],
+  [
+    "steam-market-daily-snapshot",
+    "0 0 * * *",
+    "SELECT public.create_steam_market_snapshots(date_trunc('day', now()))",
+  ],
+];
 const managedJobNames = [
   "sync-steam-wishlist-catalog",
   "sync-steam-details-every-2-hours",
   "sync-steam-details-hourly",
   ...jobs.map(([name]) => name),
+  ...databaseJobs.map(([name]) => name),
 ];
 
 const invokeFunctionSql = (functionName) => `SELECT net.http_post(
@@ -41,10 +50,18 @@ for (const [name, schedule, functionName] of jobs) {
   );`);
 }
 
+for (const [name, schedule, query] of databaseJobs) {
+  await runQuery(`SELECT cron.schedule(
+    ${sqlString(name)},
+    ${sqlString(schedule)},
+    ${sqlString(query)}
+  );`);
+}
+
 const configured = await runQuery(`
   SELECT jobname, schedule
   FROM cron.job
-  WHERE jobname = ANY (ARRAY[${jobs.map(([name]) => sqlString(name)).join(", ")}])
+  WHERE jobname = ANY (ARRAY[${[...jobs, ...databaseJobs].map(([name]) => sqlString(name)).join(", ")}])
   ORDER BY schedule;
 `);
 console.log(JSON.stringify(configured, null, 2));

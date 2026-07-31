@@ -7,6 +7,7 @@ import type {
   SteamBetSummary,
   SteamBetTargetKey,
   SteamBetTrend,
+  SteamPredictionState,
 } from '@/lib/steam-bets';
 import { STEAM_BET_TARGET_KEYS } from '@/lib/steam-bets';
 
@@ -29,7 +30,7 @@ export async function getCurrentUserSteamBets(): Promise<{
 
   const { data, error } = await supabase
     .from('steam_bets')
-    .select('steam_app_id,target_key,value,created_at,game_name,release_date,release_label,image_url')
+    .select('steam_app_id,target_key,value,percentile_value,created_at,game_name,release_date,release_label,image_url')
     .eq('user_id', userId)
     .order('created_at', { ascending: false });
 
@@ -41,6 +42,7 @@ export async function getCurrentUserSteamBets(): Promise<{
       steam_app_id: Number(bet.steam_app_id),
       target_key: bet.target_key as SteamBetTargetKey,
       value: Number(bet.value),
+      percentile_value: bet.percentile_value === null ? null : Number(bet.percentile_value),
       created_at: bet.created_at,
       game_name: bet.game_name,
       release_date: bet.release_date,
@@ -48,6 +50,37 @@ export async function getCurrentUserSteamBets(): Promise<{
       image_url: bet.image_url,
     })),
   };
+}
+
+export async function getSteamPredictionStates(
+  steamAppIds: number[],
+): Promise<SteamPredictionState[]> {
+  if (!steamAppIds.length) return [];
+  const supabase = await createSupabaseClient();
+  const { data, error } = await supabase.rpc('get_steam_prediction_states', {
+    p_steam_app_ids: steamAppIds,
+  });
+  if (error) throw new Error(error.message);
+
+  return (data ?? []).flatMap((row) => {
+    const metricType = row.metric_type as SteamBetTargetKey;
+    if (!STEAM_BET_TARGET_KEYS.includes(metricType)) return [];
+    return [{
+      steam_app_id: Number(row.steam_app_id),
+      metric_type: metricType,
+      market_status: row.market_status as SteamPredictionState['market_status'],
+      lock_at: row.lock_at,
+      resolve_after: row.resolve_after,
+      user_raw_value: row.user_raw_value === null ? null : Number(row.user_raw_value),
+      user_percentile_value:
+        row.user_percentile_value === null ? null : Number(row.user_percentile_value),
+      actual_raw_value: row.actual_raw_value === null ? null : Number(row.actual_raw_value),
+      actual_percentile_value:
+        row.actual_percentile_value === null ? null : Number(row.actual_percentile_value),
+      points: Number(row.points),
+      scored_days: Number(row.scored_days),
+    }];
+  });
 }
 
 export async function getSteamBetTrends(): Promise<SteamBetTrend[]> {

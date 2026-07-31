@@ -25,6 +25,13 @@ export function toSteamUpcomingGame(row: SteamGameCatalogRecord): SteamUpcomingG
       averageValue: null,
       predictionCount: 0,
       userValue: null,
+      userPercentile: null,
+      marketStatus: "open",
+      lockAt: null,
+      actualValue: null,
+      actualPercentile: null,
+      points: 0,
+      scoredDays: 0,
     })),
   };
 }

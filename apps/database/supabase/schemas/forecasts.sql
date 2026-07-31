@@ -467,3 +467,1115 @@ GRANT EXECUTE ON FUNCTION public.get_forecast_summaries(uuid[]) TO anon, authent
 GRANT EXECUTE ON FUNCTION public.get_forecast_leaderboard(text) TO anon, authenticated;
 GRANT EXECUTE ON FUNCTION public.get_steam_bet_trends() TO anon, authenticated, service_role;
 GRANT EXECUTE ON FUNCTION public.get_steam_bet_summaries() TO anon, authenticated, service_role;
+
+-- =============================================================================
+-- NextHit points system
+-- =============================================================================
+
+-- A model is an immutable empirical distribution. Markets keep the exact model
+-- version they opened with, so changing a reference dataset never changes old
+-- forecasts or scores.
+CREATE TABLE public.steam_percentile_models (
+  id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+  metric_type text NOT NULL,
+  model_version integer NOT NULL,
+  dataset_reference text NOT NULL,
+  sample_size integer NOT NULL,
+  reference_values numeric[] NOT NULL,
+  is_active boolean NOT NULL DEFAULT false,
+  created_at timestamptz NOT NULL DEFAULT now(),
+  CONSTRAINT steam_percentile_models_metric_check CHECK (
+    metric_type IN ('first_weekend_ccu', 'first_month_reviews', 'full_price_us')
+  ),
+  CONSTRAINT steam_percentile_models_version_check CHECK (model_version > 0),
+  CONSTRAINT steam_percentile_models_values_check CHECK (
+    sample_size = cardinality(reference_values) AND sample_size >= 10
+  ),
+  CONSTRAINT steam_percentile_models_metric_version_key UNIQUE (metric_type, model_version)
+);
+
+CREATE UNIQUE INDEX steam_percentile_models_active_idx
+  ON public.steam_percentile_models (metric_type)
+  WHERE is_active = true;
+
+CREATE TABLE public.steam_scoring_config (
+  singleton boolean PRIMARY KEY DEFAULT true,
+  scoring_start_at timestamptz NOT NULL,
+  created_at timestamptz NOT NULL DEFAULT now(),
+  CONSTRAINT steam_scoring_config_singleton_check CHECK (singleton = true)
+);
+
+CREATE TABLE public.steam_forecast_markets (
+  id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+  steam_app_id bigint NOT NULL REFERENCES public.steam_games(steam_app_id) ON DELETE RESTRICT,
+  metric_type text NOT NULL,
+  status text NOT NULL DEFAULT 'open',
+  lock_at timestamptz,
+  resolve_after timestamptz,
+  source_release_date date,
+  percentile_model_id uuid NOT NULL REFERENCES public.steam_percentile_models(id) ON DELETE RESTRICT,
+  percentile_model_version integer NOT NULL,
+  scoring_start_at timestamptz NOT NULL,
+  void_reason text,
+  voided_at timestamptz,
+  created_at timestamptz NOT NULL DEFAULT now(),
+  updated_at timestamptz NOT NULL DEFAULT now(),
+  CONSTRAINT steam_forecast_markets_game_metric_key UNIQUE (steam_app_id, metric_type),
+  CONSTRAINT steam_forecast_markets_metric_check CHECK (
+    metric_type IN ('first_weekend_ccu', 'first_month_reviews', 'full_price_us')
+  ),
+  CONSTRAINT steam_forecast_markets_status_check CHECK (
+    status IN ('open', 'locked', 'resolved', 'void')
+  ),
+  CONSTRAINT steam_forecast_markets_void_check CHECK (
+    (status = 'void' AND void_reason IS NOT NULL AND voided_at IS NOT NULL)
+    OR (status <> 'void')
+  )
+);
+
+ALTER TABLE public.steam_bets
+  ADD COLUMN updated_at timestamptz NOT NULL DEFAULT now(),
+  ADD COLUMN percentile_value numeric,
+  ADD COLUMN percentile_model_version integer;
+
+CREATE TABLE public.steam_prediction_versions (
+  id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+  market_id uuid NOT NULL REFERENCES public.steam_forecast_markets(id) ON DELETE CASCADE,
+  user_id uuid NOT NULL REFERENCES public.profiles(id) ON DELETE CASCADE,
+  raw_value numeric NOT NULL,
+  percentile_value numeric NOT NULL,
+  percentile_model_version integer NOT NULL,
+  valid_from timestamptz NOT NULL DEFAULT now(),
+  valid_to timestamptz,
+  created_at timestamptz NOT NULL DEFAULT now(),
+  CONSTRAINT steam_prediction_versions_raw_check CHECK (raw_value >= 0),
+  CONSTRAINT steam_prediction_versions_percentile_check CHECK (
+    percentile_value BETWEEN 0 AND 100
+  ),
+  CONSTRAINT steam_prediction_versions_validity_check CHECK (
+    valid_to IS NULL OR valid_to >= valid_from
+  )
+);
+
+CREATE UNIQUE INDEX steam_prediction_versions_active_idx
+  ON public.steam_prediction_versions (market_id, user_id)
+  WHERE valid_to IS NULL;
+
+CREATE INDEX steam_prediction_versions_history_idx
+  ON public.steam_prediction_versions (market_id, user_id, valid_from DESC);
+
+CREATE TABLE public.steam_market_daily_snapshots (
+  id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+  market_id uuid NOT NULL REFERENCES public.steam_forecast_markets(id) ON DELETE CASCADE,
+  snapshot_date date NOT NULL,
+  snapshot_at timestamptz NOT NULL,
+  eligible_prediction_count integer NOT NULL DEFAULT 0,
+  crowd_percentile numeric,
+  created_at timestamptz NOT NULL DEFAULT now(),
+  CONSTRAINT steam_market_daily_snapshots_key UNIQUE (market_id, snapshot_date),
+  CONSTRAINT steam_market_daily_snapshots_midnight_check CHECK (
+    snapshot_at = date_trunc('day', snapshot_at AT TIME ZONE 'UTC') AT TIME ZONE 'UTC'
+  ),
+  CONSTRAINT steam_market_daily_snapshots_count_check CHECK (eligible_prediction_count >= 0),
+  CONSTRAINT steam_market_daily_snapshots_percentile_check CHECK (
+    crowd_percentile IS NULL OR crowd_percentile BETWEEN 0 AND 100
+  )
+);
+
+CREATE TABLE public.steam_market_snapshot_predictions (
+  snapshot_id uuid NOT NULL REFERENCES public.steam_market_daily_snapshots(id) ON DELETE CASCADE,
+  prediction_version_id uuid NOT NULL REFERENCES public.steam_prediction_versions(id) ON DELETE RESTRICT,
+  user_id uuid NOT NULL REFERENCES public.profiles(id) ON DELETE CASCADE,
+  raw_value numeric NOT NULL,
+  percentile_value numeric NOT NULL,
+  PRIMARY KEY (snapshot_id, user_id),
+  CONSTRAINT steam_market_snapshot_predictions_percentile_check CHECK (
+    percentile_value BETWEEN 0 AND 100
+  )
+);
+
+CREATE TABLE public.steam_market_results (
+  id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+  market_id uuid NOT NULL REFERENCES public.steam_forecast_markets(id) ON DELETE CASCADE,
+  result_version integer NOT NULL,
+  actual_raw_value numeric NOT NULL,
+  actual_percentile_value numeric NOT NULL,
+  source_reference text NOT NULL,
+  resolved_at timestamptz NOT NULL,
+  correction_note text,
+  is_current boolean NOT NULL DEFAULT true,
+  created_by uuid REFERENCES public.profiles(id) ON DELETE SET NULL,
+  created_at timestamptz NOT NULL DEFAULT now(),
+  CONSTRAINT steam_market_results_version_key UNIQUE (market_id, result_version),
+  CONSTRAINT steam_market_results_raw_check CHECK (actual_raw_value >= 0),
+  CONSTRAINT steam_market_results_percentile_check CHECK (
+    actual_percentile_value BETWEEN 0 AND 100
+  )
+);
+
+CREATE UNIQUE INDEX steam_market_results_current_idx
+  ON public.steam_market_results (market_id)
+  WHERE is_current = true;
+
+CREATE TABLE public.steam_score_runs (
+  id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+  market_id uuid NOT NULL REFERENCES public.steam_forecast_markets(id) ON DELETE CASCADE,
+  result_id uuid NOT NULL REFERENCES public.steam_market_results(id) ON DELETE RESTRICT,
+  run_version integer NOT NULL,
+  reason text NOT NULL,
+  is_current boolean NOT NULL DEFAULT true,
+  created_by uuid REFERENCES public.profiles(id) ON DELETE SET NULL,
+  created_at timestamptz NOT NULL DEFAULT now(),
+  CONSTRAINT steam_score_runs_version_key UNIQUE (market_id, run_version)
+);
+
+CREATE UNIQUE INDEX steam_score_runs_current_idx
+  ON public.steam_score_runs (market_id)
+  WHERE is_current = true;
+
+CREATE TABLE public.steam_prediction_score_entries (
+  id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+  score_run_id uuid NOT NULL REFERENCES public.steam_score_runs(id) ON DELETE CASCADE,
+  market_id uuid NOT NULL REFERENCES public.steam_forecast_markets(id) ON DELETE CASCADE,
+  snapshot_id uuid NOT NULL REFERENCES public.steam_market_daily_snapshots(id) ON DELETE CASCADE,
+  user_id uuid NOT NULL REFERENCES public.profiles(id) ON DELETE CASCADE,
+  user_percentile numeric NOT NULL,
+  crowd_without_user_percentile numeric NOT NULL,
+  actual_percentile numeric NOT NULL,
+  points numeric NOT NULL,
+  created_at timestamptz NOT NULL DEFAULT now(),
+  CONSTRAINT steam_prediction_score_entries_key UNIQUE (score_run_id, snapshot_id, user_id),
+  CONSTRAINT steam_prediction_score_entries_user_percentile_check CHECK (
+    user_percentile BETWEEN 0 AND 100
+  ),
+  CONSTRAINT steam_prediction_score_entries_crowd_percentile_check CHECK (
+    crowd_without_user_percentile BETWEEN 0 AND 100
+  ),
+  CONSTRAINT steam_prediction_score_entries_actual_percentile_check CHECK (
+    actual_percentile BETWEEN 0 AND 100
+  )
+);
+
+CREATE INDEX steam_prediction_score_entries_user_idx
+  ON public.steam_prediction_score_entries (user_id, market_id);
+
+CREATE TABLE public.steam_user_leaderboard_stats (
+  user_id uuid NOT NULL REFERENCES public.profiles(id) ON DELETE CASCADE,
+  metric_type text NOT NULL,
+  points numeric NOT NULL DEFAULT 0,
+  scored_days integer NOT NULL DEFAULT 0,
+  resolved_markets integer NOT NULL DEFAULT 0,
+  rank_position bigint NOT NULL,
+  updated_at timestamptz NOT NULL DEFAULT now(),
+  PRIMARY KEY (user_id, metric_type),
+  CONSTRAINT steam_user_leaderboard_stats_metric_check CHECK (
+    metric_type IN ('all', 'first_weekend_ccu', 'first_month_reviews', 'full_price_us')
+  ),
+  CONSTRAINT steam_user_leaderboard_stats_counts_check CHECK (
+    scored_days >= 0 AND resolved_markets >= 0 AND rank_position > 0
+  )
+);
+
+CREATE INDEX steam_user_leaderboard_stats_rank_idx
+  ON public.steam_user_leaderboard_stats (metric_type, rank_position);
+
+CREATE TRIGGER steam_forecast_markets_set_updated_at
+  BEFORE UPDATE ON public.steam_forecast_markets
+  FOR EACH ROW
+  EXECUTE FUNCTION private.set_updated_at();
+
+CREATE TRIGGER steam_bets_set_updated_at
+  BEFORE UPDATE ON public.steam_bets
+  FOR EACH ROW
+  EXECUTE FUNCTION private.set_updated_at();
+
+ALTER TABLE public.steam_percentile_models ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.steam_scoring_config ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.steam_forecast_markets ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.steam_prediction_versions ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.steam_market_daily_snapshots ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.steam_market_snapshot_predictions ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.steam_market_results ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.steam_score_runs ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.steam_prediction_score_entries ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.steam_user_leaderboard_stats ENABLE ROW LEVEL SECURITY;
+
+CREATE POLICY steam_forecast_markets_public_read
+  ON public.steam_forecast_markets FOR SELECT TO anon, authenticated USING (true);
+CREATE POLICY steam_prediction_versions_read_own
+  ON public.steam_prediction_versions FOR SELECT TO authenticated
+  USING ((SELECT auth.uid()) = user_id);
+CREATE POLICY steam_market_results_public_read
+  ON public.steam_market_results FOR SELECT TO anon, authenticated USING (is_current = true);
+CREATE POLICY steam_prediction_score_entries_read_own
+  ON public.steam_prediction_score_entries FOR SELECT TO authenticated
+  USING ((SELECT auth.uid()) = user_id);
+CREATE POLICY steam_user_leaderboard_stats_public_read
+  ON public.steam_user_leaderboard_stats FOR SELECT TO anon, authenticated USING (true);
+
+CREATE OR REPLACE FUNCTION private.steam_is_internal_actor()
+RETURNS boolean
+LANGUAGE sql
+STABLE
+SECURITY DEFINER
+SET search_path = ''
+AS $$
+  SELECT coalesce(auth.role() = 'service_role', false)
+    OR coalesce(private.is_admin(auth.uid()), false);
+$$;
+
+CREATE OR REPLACE FUNCTION private.steam_metric_lock_at(p_release_date date)
+RETURNS timestamptz
+LANGUAGE sql
+IMMUTABLE
+SET search_path = ''
+AS $$
+  SELECT CASE WHEN p_release_date IS NULL THEN NULL
+    ELSE p_release_date::timestamp AT TIME ZONE 'UTC'
+  END;
+$$;
+
+CREATE OR REPLACE FUNCTION private.steam_metric_resolve_after(
+  p_metric_type text,
+  p_release_date date
+)
+RETURNS timestamptz
+LANGUAGE sql
+IMMUTABLE
+SET search_path = ''
+AS $$
+  SELECT CASE
+    WHEN p_release_date IS NULL THEN NULL
+    WHEN p_metric_type = 'full_price_us'
+      THEN p_release_date::timestamp AT TIME ZONE 'UTC'
+    WHEN p_metric_type = 'first_weekend_ccu'
+      THEN (date_trunc('week', p_release_date::timestamp) + interval '7 days') AT TIME ZONE 'UTC'
+    WHEN p_metric_type = 'first_month_reviews'
+      THEN (p_release_date::timestamp + interval '30 days') AT TIME ZONE 'UTC'
+    ELSE NULL
+  END;
+$$;
+
+CREATE OR REPLACE FUNCTION public.ensure_steam_points_system()
+RETURNS void
+LANGUAGE plpgsql
+SECURITY DEFINER
+SET search_path = ''
+AS $$
+DECLARE
+  scoring_start timestamptz;
+BEGIN
+  INSERT INTO public.steam_scoring_config (singleton, scoring_start_at)
+  VALUES (true, now())
+  ON CONFLICT (singleton) DO NOTHING;
+
+  INSERT INTO public.steam_percentile_models (
+    metric_type, model_version, dataset_reference, sample_size, reference_values, is_active
+  ) VALUES
+    (
+      'first_weekend_ccu', 1, 'mvp_fixture_v1: replace only with a versioned audited dataset', 25,
+      ARRAY[0,25,50,100,200,350,500,750,1000,1500,2500,4000,6500,10000,16000,25000,40000,65000,100000,175000,300000,600000,1000000,3000000,10000000]::numeric[], true
+    ),
+    (
+      'first_month_reviews', 1, 'mvp_fixture_v1: replace only with a versioned audited dataset', 25,
+      ARRAY[0,2,5,10,20,35,50,80,120,180,275,400,650,1000,1600,2500,4000,6500,10000,18000,30000,60000,120000,300000,1000000]::numeric[], true
+    ),
+    (
+      'full_price_us', 1, 'mvp_fixture_v1: replace only with a versioned audited dataset', 25,
+      ARRAY[0,0.99,1.99,2.99,3.99,4.99,5.99,7.99,9.99,11.99,12.99,14.99,17.99,19.99,24.99,29.99,34.99,39.99,44.99,49.99,59.99,69.99,79.99,89.99,99.99]::numeric[], true
+    )
+  ON CONFLICT (metric_type, model_version) DO NOTHING;
+
+  SELECT config.scoring_start_at INTO scoring_start
+  FROM public.steam_scoring_config AS config
+  WHERE config.singleton = true;
+
+  INSERT INTO public.steam_forecast_markets (
+    steam_app_id,
+    metric_type,
+    lock_at,
+    resolve_after,
+    source_release_date,
+    percentile_model_id,
+    percentile_model_version,
+    scoring_start_at
+  )
+  SELECT
+    game.steam_app_id,
+    metric.metric_type,
+    private.steam_metric_lock_at(game.release_date),
+    private.steam_metric_resolve_after(metric.metric_type, game.release_date),
+    game.release_date,
+    model.id,
+    model.model_version,
+    scoring_start
+  FROM public.steam_games AS game
+  CROSS JOIN (
+    VALUES ('first_weekend_ccu'), ('first_month_reviews'), ('full_price_us')
+  ) AS metric(metric_type)
+  JOIN public.steam_percentile_models AS model
+    ON model.metric_type = metric.metric_type AND model.is_active = true
+  WHERE game.lifecycle_status = 'upcoming' AND game.is_wishlisted = true
+  ON CONFLICT (steam_app_id, metric_type) DO NOTHING;
+
+  UPDATE public.steam_forecast_markets AS market
+  SET
+    lock_at = private.steam_metric_lock_at(game.release_date),
+    resolve_after = private.steam_metric_resolve_after(market.metric_type, game.release_date),
+    source_release_date = game.release_date
+  FROM public.steam_games AS game
+  WHERE game.steam_app_id = market.steam_app_id
+    AND market.status = 'open'
+    AND (
+      market.source_release_date IS DISTINCT FROM game.release_date
+      OR market.lock_at IS DISTINCT FROM private.steam_metric_lock_at(game.release_date)
+    );
+
+  UPDATE public.steam_forecast_markets AS market
+  SET status = 'void', void_reason = 'Game left the TopWishlisted catalog', voided_at = now()
+  FROM public.steam_games AS game
+  WHERE game.steam_app_id = market.steam_app_id
+    AND market.status = 'open'
+    AND game.is_wishlisted = false;
+
+  UPDATE public.steam_bets AS bet
+  SET
+    percentile_value = public.steam_percentile_value(
+      market.metric_type,
+      market.percentile_model_version,
+      bet.value
+    ),
+    percentile_model_version = market.percentile_model_version
+  FROM public.steam_forecast_markets AS market
+  WHERE market.steam_app_id = bet.steam_app_id
+    AND market.metric_type = bet.target_key
+    AND (bet.percentile_value IS NULL OR bet.percentile_model_version IS NULL);
+
+  INSERT INTO public.steam_prediction_versions (
+    market_id, user_id, raw_value, percentile_value, percentile_model_version, valid_from
+  )
+  SELECT
+    market.id,
+    bet.user_id,
+    bet.value,
+    bet.percentile_value,
+    bet.percentile_model_version,
+    market.scoring_start_at
+  FROM public.steam_bets AS bet
+  JOIN public.steam_forecast_markets AS market
+    ON market.steam_app_id = bet.steam_app_id AND market.metric_type = bet.target_key
+  WHERE bet.percentile_value IS NOT NULL
+    AND NOT EXISTS (
+      SELECT 1 FROM public.steam_prediction_versions AS version
+      WHERE version.market_id = market.id AND version.user_id = bet.user_id
+    );
+END;
+$$;
+
+CREATE OR REPLACE FUNCTION public.steam_percentile_value(
+  p_metric_type text,
+  p_model_version integer,
+  p_raw_value numeric
+)
+RETURNS numeric
+LANGUAGE plpgsql
+STABLE
+SECURITY DEFINER
+SET search_path = ''
+AS $$
+DECLARE
+  reference numeric[];
+  below_count integer;
+  equal_count integer;
+BEGIN
+  IF p_raw_value IS NULL OR p_raw_value < 0 THEN
+    RAISE EXCEPTION 'forecast value must be zero or greater' USING ERRCODE = '22003';
+  END IF;
+
+  SELECT model.reference_values INTO reference
+  FROM public.steam_percentile_models AS model
+  WHERE model.metric_type = p_metric_type AND model.model_version = p_model_version;
+
+  IF reference IS NULL THEN
+    RAISE EXCEPTION 'percentile model not found' USING ERRCODE = 'P0002';
+  END IF;
+
+  SELECT
+    count(*) FILTER (WHERE item < p_raw_value),
+    count(*) FILTER (WHERE item = p_raw_value)
+  INTO below_count, equal_count
+  FROM unnest(reference) AS item;
+
+  RETURN round((below_count + equal_count * 0.5) * 100.0 / cardinality(reference), 4);
+END;
+$$;
+
+CREATE OR REPLACE FUNCTION public.sync_steam_forecast_markets()
+RETURNS integer
+LANGUAGE plpgsql
+SECURITY DEFINER
+SET search_path = ''
+AS $$
+DECLARE
+  market_count integer;
+BEGIN
+  PERFORM public.ensure_steam_points_system();
+  SELECT count(*) INTO market_count FROM public.steam_forecast_markets;
+  RETURN market_count;
+END;
+$$;
+
+CREATE OR REPLACE FUNCTION public.lock_due_steam_forecast_markets()
+RETURNS integer
+LANGUAGE plpgsql
+SECURITY DEFINER
+SET search_path = ''
+AS $$
+DECLARE
+  locked_count integer;
+BEGIN
+  UPDATE public.steam_forecast_markets
+  SET status = 'locked'
+  WHERE status = 'open' AND lock_at IS NOT NULL AND lock_at <= now();
+  GET DIAGNOSTICS locked_count = ROW_COUNT;
+  RETURN locked_count;
+END;
+$$;
+
+CREATE OR REPLACE FUNCTION public.submit_steam_prediction(
+  p_steam_app_id bigint,
+  p_metric_type text,
+  p_raw_value numeric
+)
+RETURNS TABLE (
+  steam_app_id bigint,
+  metric_type text,
+  raw_value numeric,
+  percentile_value numeric,
+  market_status text,
+  lock_at timestamptz,
+  updated_at timestamptz
+)
+LANGUAGE plpgsql
+SECURITY DEFINER
+SET search_path = ''
+AS $$
+DECLARE
+  current_user_id uuid := auth.uid();
+  market public.steam_forecast_markets%ROWTYPE;
+  game public.steam_games%ROWTYPE;
+  calculated_percentile numeric;
+  saved_at timestamptz := clock_timestamp();
+  current_version public.steam_prediction_versions%ROWTYPE;
+BEGIN
+  IF current_user_id IS NULL THEN
+    RAISE EXCEPTION 'authentication required' USING ERRCODE = '28000';
+  END IF;
+  IF p_metric_type NOT IN ('first_weekend_ccu', 'first_month_reviews', 'full_price_us') THEN
+    RAISE EXCEPTION 'unsupported forecast metric' USING ERRCODE = '22023';
+  END IF;
+  IF p_raw_value IS NULL OR p_raw_value < 0
+    OR (p_metric_type = 'first_weekend_ccu' AND p_raw_value > 9999999)
+    OR (p_metric_type = 'first_month_reviews' AND p_raw_value > 999999)
+    OR (p_metric_type = 'full_price_us' AND p_raw_value > 10000)
+  THEN
+    RAISE EXCEPTION 'forecast value is outside the allowed range' USING ERRCODE = '22003';
+  END IF;
+
+  SELECT * INTO game FROM public.steam_games
+  WHERE steam_games.steam_app_id = p_steam_app_id
+    AND lifecycle_status = 'upcoming' AND is_wishlisted = true;
+  IF NOT FOUND THEN
+    RAISE EXCEPTION 'game is not open for predictions' USING ERRCODE = 'P0002';
+  END IF;
+
+  SELECT * INTO market FROM public.steam_forecast_markets
+  WHERE steam_forecast_markets.steam_app_id = p_steam_app_id
+    AND steam_forecast_markets.metric_type = p_metric_type
+  FOR UPDATE;
+  IF NOT FOUND THEN
+    PERFORM public.ensure_steam_points_system();
+    SELECT * INTO market FROM public.steam_forecast_markets
+    WHERE steam_forecast_markets.steam_app_id = p_steam_app_id
+      AND steam_forecast_markets.metric_type = p_metric_type
+    FOR UPDATE;
+    IF NOT FOUND THEN
+      RAISE EXCEPTION 'forecast market not found' USING ERRCODE = 'P0002';
+    END IF;
+  END IF;
+
+  IF market.status = 'open' AND market.lock_at IS NOT NULL AND market.lock_at <= now() THEN
+    UPDATE public.steam_forecast_markets SET status = 'locked' WHERE id = market.id;
+    market.status := 'locked';
+  END IF;
+  IF market.status <> 'open' THEN
+    RAISE EXCEPTION 'forecast market is %', market.status USING ERRCODE = '22023';
+  END IF;
+
+  calculated_percentile := public.steam_percentile_value(
+    market.metric_type, market.percentile_model_version, p_raw_value
+  );
+
+  SELECT * INTO current_version
+  FROM public.steam_prediction_versions
+  WHERE market_id = market.id AND user_id = current_user_id AND valid_to IS NULL
+  FOR UPDATE;
+
+  IF FOUND AND current_version.raw_value IS DISTINCT FROM p_raw_value THEN
+    UPDATE public.steam_prediction_versions SET valid_to = saved_at WHERE id = current_version.id;
+  END IF;
+
+  IF NOT FOUND OR current_version.raw_value IS DISTINCT FROM p_raw_value THEN
+    INSERT INTO public.steam_prediction_versions (
+      market_id, user_id, raw_value, percentile_value, percentile_model_version, valid_from
+    ) VALUES (
+      market.id, current_user_id, p_raw_value, calculated_percentile,
+      market.percentile_model_version, saved_at
+    );
+  END IF;
+
+  INSERT INTO public.steam_bets (
+    user_id, steam_app_id, target_key, value, game_name, release_date,
+    release_label, image_url, percentile_value, percentile_model_version
+  ) VALUES (
+    current_user_id, game.steam_app_id, p_metric_type, p_raw_value, game.name,
+    coalesce(game.release_date::text, ''), game.release_label, game.image_url,
+    calculated_percentile, market.percentile_model_version
+  )
+  ON CONFLICT ON CONSTRAINT steam_bets_user_game_target_key DO UPDATE SET
+    value = EXCLUDED.value,
+    game_name = EXCLUDED.game_name,
+    release_date = EXCLUDED.release_date,
+    release_label = EXCLUDED.release_label,
+    image_url = EXCLUDED.image_url,
+    percentile_value = EXCLUDED.percentile_value,
+    percentile_model_version = EXCLUDED.percentile_model_version;
+
+  RETURN QUERY SELECT
+    game.steam_app_id,
+    market.metric_type,
+    p_raw_value,
+    calculated_percentile,
+    market.status,
+    market.lock_at,
+    saved_at;
+END;
+$$;
+
+CREATE OR REPLACE FUNCTION public.create_steam_market_snapshots(
+  p_snapshot_at timestamptz DEFAULT date_trunc('day', now())
+)
+RETURNS integer
+LANGUAGE plpgsql
+SECURITY DEFINER
+SET search_path = ''
+AS $$
+DECLARE
+  normalized_at timestamptz := date_trunc('day', p_snapshot_at AT TIME ZONE 'UTC') AT TIME ZONE 'UTC';
+  inserted_count integer;
+BEGIN
+  IF p_snapshot_at IS DISTINCT FROM normalized_at THEN
+    RAISE EXCEPTION 'snapshot time must be 00:00 UTC' USING ERRCODE = '22023';
+  END IF;
+  IF normalized_at > now() THEN
+    RAISE EXCEPTION 'future snapshots are not allowed' USING ERRCODE = '22023';
+  END IF;
+
+  PERFORM public.ensure_steam_points_system();
+
+  INSERT INTO public.steam_market_daily_snapshots (
+    market_id, snapshot_date, snapshot_at
+  )
+  SELECT market.id, normalized_at::date, normalized_at
+  FROM public.steam_forecast_markets AS market
+  WHERE market.status <> 'void'
+    AND normalized_at >= date_trunc('day', market.scoring_start_at AT TIME ZONE 'UTC') AT TIME ZONE 'UTC'
+    AND (market.lock_at IS NULL OR normalized_at < market.lock_at)
+  ON CONFLICT (market_id, snapshot_date) DO NOTHING;
+  GET DIAGNOSTICS inserted_count = ROW_COUNT;
+
+  INSERT INTO public.steam_market_snapshot_predictions (
+    snapshot_id, prediction_version_id, user_id, raw_value, percentile_value
+  )
+  SELECT snapshot.id, version.id, version.user_id, version.raw_value, version.percentile_value
+  FROM public.steam_market_daily_snapshots AS snapshot
+  JOIN public.steam_prediction_versions AS version
+    ON version.market_id = snapshot.market_id
+    AND version.valid_from <= snapshot.snapshot_at
+    AND (version.valid_to IS NULL OR version.valid_to > snapshot.snapshot_at)
+  WHERE snapshot.snapshot_at = normalized_at
+  ON CONFLICT (snapshot_id, user_id) DO NOTHING;
+
+  UPDATE public.steam_market_daily_snapshots AS snapshot
+  SET
+    eligible_prediction_count = aggregate.prediction_count,
+    crowd_percentile = aggregate.crowd_percentile
+  FROM (
+    SELECT membership.snapshot_id,
+      count(*)::integer AS prediction_count,
+      avg(membership.percentile_value) AS crowd_percentile
+    FROM public.steam_market_snapshot_predictions AS membership
+    GROUP BY membership.snapshot_id
+  ) AS aggregate
+  WHERE snapshot.id = aggregate.snapshot_id AND snapshot.snapshot_at = normalized_at;
+
+  RETURN inserted_count;
+END;
+$$;
+
+CREATE OR REPLACE FUNCTION public.rebuild_steam_leaderboard_stats()
+RETURNS integer
+LANGUAGE plpgsql
+SECURITY DEFINER
+SET search_path = ''
+AS $$
+DECLARE
+  rebuilt_count integer;
+BEGIN
+  DELETE FROM public.steam_user_leaderboard_stats;
+
+  WITH current_entries AS (
+    SELECT entry.*, market.metric_type, snapshot.snapshot_date
+    FROM public.steam_prediction_score_entries AS entry
+    JOIN public.steam_score_runs AS run
+      ON run.id = entry.score_run_id AND run.is_current = true
+    JOIN public.steam_forecast_markets AS market ON market.id = entry.market_id
+    JOIN public.steam_market_daily_snapshots AS snapshot ON snapshot.id = entry.snapshot_id
+    WHERE market.status = 'resolved'
+  ), grouped AS (
+    SELECT user_id, metric_type, sum(points) AS points,
+      count(DISTINCT snapshot_date)::integer AS scored_days,
+      count(DISTINCT market_id)::integer AS resolved_markets
+    FROM current_entries GROUP BY user_id, metric_type
+    UNION ALL
+    SELECT user_id, 'all', sum(points), count(DISTINCT snapshot_date)::integer,
+      count(DISTINCT market_id)::integer
+    FROM current_entries GROUP BY user_id
+  ), ranked AS (
+    SELECT grouped.*,
+      row_number() OVER (
+        PARTITION BY grouped.metric_type
+        ORDER BY grouped.points DESC, grouped.scored_days DESC,
+          grouped.resolved_markets DESC, profile.created_at ASC, grouped.user_id ASC
+      ) AS rank_position
+    FROM grouped
+    JOIN public.profiles AS profile ON profile.id = grouped.user_id
+  )
+  INSERT INTO public.steam_user_leaderboard_stats (
+    user_id, metric_type, points, scored_days, resolved_markets, rank_position
+  )
+  SELECT user_id, metric_type, points, scored_days, resolved_markets, rank_position
+  FROM ranked;
+
+  GET DIAGNOSTICS rebuilt_count = ROW_COUNT;
+  RETURN rebuilt_count;
+END;
+$$;
+
+CREATE OR REPLACE FUNCTION public.resolve_steam_forecast_market(
+  p_market_id uuid,
+  p_actual_raw_value numeric,
+  p_source_reference text,
+  p_resolved_at timestamptz DEFAULT now(),
+  p_correction_note text DEFAULT NULL
+)
+RETURNS public.steam_market_results
+LANGUAGE plpgsql
+SECURITY DEFINER
+SET search_path = ''
+AS $$
+DECLARE
+  market public.steam_forecast_markets%ROWTYPE;
+  current_result public.steam_market_results%ROWTYPE;
+  saved_result public.steam_market_results%ROWTYPE;
+  saved_run public.steam_score_runs%ROWTYPE;
+  actual_percentile numeric;
+  next_result_version integer;
+  next_run_version integer;
+BEGIN
+  IF NOT private.steam_is_internal_actor() THEN
+    RAISE EXCEPTION 'administrator access required' USING ERRCODE = '42501';
+  END IF;
+  IF p_actual_raw_value IS NULL OR p_actual_raw_value < 0 OR nullif(trim(p_source_reference), '') IS NULL THEN
+    RAISE EXCEPTION 'actual value and source are required' USING ERRCODE = '22023';
+  END IF;
+
+  SELECT * INTO market FROM public.steam_forecast_markets WHERE id = p_market_id FOR UPDATE;
+  IF NOT FOUND THEN RAISE EXCEPTION 'forecast market not found' USING ERRCODE = 'P0002'; END IF;
+  IF market.status = 'void' OR market.status = 'open' THEN
+    RAISE EXCEPTION 'only locked or resolved markets can be resolved' USING ERRCODE = '22023';
+  END IF;
+
+  actual_percentile := public.steam_percentile_value(
+    market.metric_type, market.percentile_model_version, p_actual_raw_value
+  );
+  SELECT * INTO current_result FROM public.steam_market_results
+  WHERE market_id = market.id AND is_current = true FOR UPDATE;
+
+  IF FOUND
+    AND current_result.actual_raw_value = p_actual_raw_value
+    AND current_result.source_reference = p_source_reference
+  THEN
+    RETURN current_result;
+  END IF;
+
+  UPDATE public.steam_market_results SET is_current = false
+  WHERE market_id = market.id AND is_current = true;
+  SELECT coalesce(max(result_version), 0) + 1 INTO next_result_version
+  FROM public.steam_market_results WHERE market_id = market.id;
+  INSERT INTO public.steam_market_results (
+    market_id, result_version, actual_raw_value, actual_percentile_value,
+    source_reference, resolved_at, correction_note, created_by
+  ) VALUES (
+    market.id, next_result_version, p_actual_raw_value, actual_percentile,
+    p_source_reference, p_resolved_at, p_correction_note, auth.uid()
+  ) RETURNING * INTO saved_result;
+
+  UPDATE public.steam_score_runs SET is_current = false
+  WHERE market_id = market.id AND is_current = true;
+  SELECT coalesce(max(run_version), 0) + 1 INTO next_run_version
+  FROM public.steam_score_runs WHERE market_id = market.id;
+  INSERT INTO public.steam_score_runs (
+    market_id, result_id, run_version, reason, created_by
+  ) VALUES (
+    market.id, saved_result.id, next_run_version,
+    CASE WHEN next_run_version = 1 THEN 'initial resolution' ELSE 'result correction' END,
+    auth.uid()
+  ) RETURNING * INTO saved_run;
+
+  INSERT INTO public.steam_prediction_score_entries (
+    score_run_id, market_id, snapshot_id, user_id, user_percentile,
+    crowd_without_user_percentile, actual_percentile, points
+  )
+  SELECT
+    saved_run.id,
+    market.id,
+    snapshot.id,
+    membership.user_id,
+    membership.percentile_value,
+    (snapshot.crowd_percentile * snapshot.eligible_prediction_count - membership.percentile_value)
+      / (snapshot.eligible_prediction_count - 1),
+    actual_percentile,
+    abs(actual_percentile - (
+      (snapshot.crowd_percentile * snapshot.eligible_prediction_count - membership.percentile_value)
+        / (snapshot.eligible_prediction_count - 1)
+    )) - abs(actual_percentile - membership.percentile_value)
+  FROM public.steam_market_daily_snapshots AS snapshot
+  JOIN public.steam_market_snapshot_predictions AS membership
+    ON membership.snapshot_id = snapshot.id
+  WHERE snapshot.market_id = market.id AND snapshot.eligible_prediction_count >= 2;
+
+  UPDATE public.steam_forecast_markets SET status = 'resolved' WHERE id = market.id;
+  PERFORM public.rebuild_steam_leaderboard_stats();
+  RETURN saved_result;
+END;
+$$;
+
+CREATE OR REPLACE FUNCTION public.recalculate_steam_forecast_market(
+  p_market_id uuid,
+  p_reason text DEFAULT 'manual recalculation'
+)
+RETURNS integer
+LANGUAGE plpgsql
+SECURITY DEFINER
+SET search_path = ''
+AS $$
+DECLARE
+  market public.steam_forecast_markets%ROWTYPE;
+  result public.steam_market_results%ROWTYPE;
+  saved_run public.steam_score_runs%ROWTYPE;
+  next_run_version integer;
+  entry_count integer;
+BEGIN
+  IF NOT private.steam_is_internal_actor() THEN
+    RAISE EXCEPTION 'administrator access required' USING ERRCODE = '42501';
+  END IF;
+  SELECT * INTO market FROM public.steam_forecast_markets WHERE id = p_market_id FOR UPDATE;
+  SELECT * INTO result FROM public.steam_market_results
+  WHERE market_id = p_market_id AND is_current = true;
+  IF market.id IS NULL OR result.id IS NULL OR market.status <> 'resolved' THEN
+    RAISE EXCEPTION 'resolved market result not found' USING ERRCODE = 'P0002';
+  END IF;
+
+  UPDATE public.steam_score_runs SET is_current = false
+  WHERE market_id = market.id AND is_current = true;
+  SELECT coalesce(max(run_version), 0) + 1 INTO next_run_version
+  FROM public.steam_score_runs WHERE market_id = market.id;
+  INSERT INTO public.steam_score_runs (
+    market_id, result_id, run_version, reason, created_by
+  ) VALUES (market.id, result.id, next_run_version, p_reason, auth.uid())
+  RETURNING * INTO saved_run;
+
+  INSERT INTO public.steam_prediction_score_entries (
+    score_run_id, market_id, snapshot_id, user_id, user_percentile,
+    crowd_without_user_percentile, actual_percentile, points
+  )
+  SELECT saved_run.id, market.id, snapshot.id, membership.user_id,
+    membership.percentile_value,
+    (snapshot.crowd_percentile * snapshot.eligible_prediction_count - membership.percentile_value)
+      / (snapshot.eligible_prediction_count - 1),
+    result.actual_percentile_value,
+    abs(result.actual_percentile_value - (
+      (snapshot.crowd_percentile * snapshot.eligible_prediction_count - membership.percentile_value)
+        / (snapshot.eligible_prediction_count - 1)
+    )) - abs(result.actual_percentile_value - membership.percentile_value)
+  FROM public.steam_market_daily_snapshots AS snapshot
+  JOIN public.steam_market_snapshot_predictions AS membership ON membership.snapshot_id = snapshot.id
+  WHERE snapshot.market_id = market.id AND snapshot.eligible_prediction_count >= 2;
+  GET DIAGNOSTICS entry_count = ROW_COUNT;
+  PERFORM public.rebuild_steam_leaderboard_stats();
+  RETURN entry_count;
+END;
+$$;
+
+CREATE OR REPLACE FUNCTION public.void_steam_forecast_market(
+  p_market_id uuid,
+  p_reason text
+)
+RETURNS void
+LANGUAGE plpgsql
+SECURITY DEFINER
+SET search_path = ''
+AS $$
+BEGIN
+  IF NOT private.steam_is_internal_actor() THEN
+    RAISE EXCEPTION 'administrator access required' USING ERRCODE = '42501';
+  END IF;
+  IF nullif(trim(p_reason), '') IS NULL THEN
+    RAISE EXCEPTION 'void reason is required' USING ERRCODE = '22023';
+  END IF;
+  UPDATE public.steam_forecast_markets
+  SET status = 'void', void_reason = p_reason, voided_at = now()
+  WHERE id = p_market_id AND status <> 'void';
+  UPDATE public.steam_score_runs SET is_current = false
+  WHERE market_id = p_market_id AND is_current = true;
+  PERFORM public.rebuild_steam_leaderboard_stats();
+END;
+$$;
+
+CREATE OR REPLACE FUNCTION public.process_steam_market_cycle()
+RETURNS jsonb
+LANGUAGE plpgsql
+SECURITY DEFINER
+SET search_path = ''
+AS $$
+DECLARE
+  market_count integer;
+  locked_count integer;
+BEGIN
+  market_count := public.sync_steam_forecast_markets();
+  locked_count := public.lock_due_steam_forecast_markets();
+  RETURN jsonb_build_object('markets', market_count, 'locked', locked_count, 'processed_at', now());
+END;
+$$;
+
+CREATE OR REPLACE FUNCTION public.get_steam_prediction_states(
+  p_steam_app_ids bigint[] DEFAULT NULL
+)
+RETURNS TABLE (
+  steam_app_id bigint,
+  metric_type text,
+  market_status text,
+  lock_at timestamptz,
+  resolve_after timestamptz,
+  user_raw_value numeric,
+  user_percentile_value numeric,
+  actual_raw_value numeric,
+  actual_percentile_value numeric,
+  points numeric,
+  scored_days bigint
+)
+LANGUAGE sql
+STABLE
+SECURITY DEFINER
+SET search_path = ''
+AS $$
+  SELECT
+    market.steam_app_id,
+    market.metric_type,
+    market.status,
+    market.lock_at,
+    market.resolve_after,
+    version.raw_value,
+    version.percentile_value,
+    result.actual_raw_value,
+    result.actual_percentile_value,
+    coalesce(score.points, 0),
+    coalesce(score.scored_days, 0)
+  FROM public.steam_forecast_markets AS market
+  LEFT JOIN public.steam_prediction_versions AS version
+    ON version.market_id = market.id AND version.user_id = auth.uid() AND version.valid_to IS NULL
+  LEFT JOIN public.steam_market_results AS result
+    ON result.market_id = market.id AND result.is_current = true
+  LEFT JOIN LATERAL (
+    SELECT sum(entry.points) AS points, count(DISTINCT snapshot.snapshot_date) AS scored_days
+    FROM public.steam_prediction_score_entries AS entry
+    JOIN public.steam_score_runs AS run ON run.id = entry.score_run_id AND run.is_current = true
+    JOIN public.steam_market_daily_snapshots AS snapshot ON snapshot.id = entry.snapshot_id
+    WHERE entry.market_id = market.id AND entry.user_id = auth.uid()
+  ) AS score ON true
+  WHERE p_steam_app_ids IS NULL OR market.steam_app_id = ANY(p_steam_app_ids)
+  ORDER BY market.steam_app_id, market.metric_type;
+$$;
+
+CREATE OR REPLACE FUNCTION public.get_steam_points_leaderboard(
+  p_metric_type text DEFAULT 'all',
+  p_limit integer DEFAULT 25,
+  p_offset integer DEFAULT 0
+)
+RETURNS TABLE (
+  rank_position bigint,
+  user_id uuid,
+  username text,
+  display_name text,
+  avatar_id public.avatar_id,
+  points numeric,
+  scored_days integer,
+  resolved_markets integer,
+  is_current_user boolean,
+  is_page_member boolean,
+  total_rows bigint
+)
+LANGUAGE plpgsql
+STABLE
+SECURITY DEFINER
+SET search_path = ''
+AS $$
+BEGIN
+  IF p_metric_type NOT IN ('all', 'first_weekend_ccu', 'first_month_reviews', 'full_price_us') THEN
+    RAISE EXCEPTION 'unsupported leaderboard metric' USING ERRCODE = '22023';
+  END IF;
+  IF p_limit < 1 OR p_limit > 100 OR p_offset < 0 THEN
+    RAISE EXCEPTION 'invalid pagination' USING ERRCODE = '22023';
+  END IF;
+
+  RETURN QUERY
+  WITH total AS (
+    SELECT count(*)::bigint AS value
+    FROM public.steam_user_leaderboard_stats AS stats
+    WHERE stats.metric_type = p_metric_type
+  ), page AS (
+    SELECT stats.* FROM public.steam_user_leaderboard_stats AS stats
+    WHERE stats.metric_type = p_metric_type
+    ORDER BY stats.rank_position
+    LIMIT p_limit OFFSET p_offset
+  ), viewer AS (
+    SELECT stats.* FROM public.steam_user_leaderboard_stats AS stats
+    WHERE stats.metric_type = p_metric_type AND stats.user_id = auth.uid()
+  ), combined AS (
+    SELECT page.*, true AS is_page_member FROM page
+    UNION ALL
+    SELECT viewer.*, false FROM viewer
+    WHERE NOT EXISTS (SELECT 1 FROM page WHERE page.user_id = viewer.user_id)
+  ), with_empty_viewer AS (
+    SELECT * FROM combined
+    UNION ALL
+    SELECT auth.uid(), p_metric_type, 0::numeric, 0, 0,
+      (SELECT value + 1 FROM total), now(), false
+    WHERE auth.uid() IS NOT NULL
+      AND NOT EXISTS (SELECT 1 FROM combined WHERE combined.user_id = auth.uid())
+  )
+  SELECT
+    row.rank_position,
+    row.user_id,
+    profile.username,
+    profile.display_name,
+    profile.avatar_id,
+    row.points,
+    row.scored_days,
+    row.resolved_markets,
+    row.user_id = auth.uid(),
+    row.is_page_member,
+    total.value
+  FROM with_empty_viewer AS row
+  JOIN public.profiles AS profile ON profile.id = row.user_id
+  CROSS JOIN total
+  ORDER BY row.is_page_member DESC, row.rank_position;
+END;
+$$;
+
+CREATE OR REPLACE FUNCTION public.get_steam_resolution_queue()
+RETURNS TABLE (
+  market_id uuid,
+  steam_app_id bigint,
+  game_name text,
+  metric_type text,
+  resolve_after timestamptz,
+  status text
+)
+LANGUAGE plpgsql
+STABLE
+SECURITY DEFINER
+SET search_path = ''
+AS $$
+BEGIN
+  IF NOT private.steam_is_internal_actor() THEN
+    RAISE EXCEPTION 'administrator access required' USING ERRCODE = '42501';
+  END IF;
+  RETURN QUERY
+  SELECT market.id, market.steam_app_id, game.name, market.metric_type,
+    market.resolve_after, market.status
+  FROM public.steam_forecast_markets AS market
+  JOIN public.steam_games AS game ON game.steam_app_id = market.steam_app_id
+  WHERE market.status = 'locked' AND market.resolve_after <= now()
+  ORDER BY market.resolve_after, market.steam_app_id, market.metric_type;
+END;
+$$;
+
+REVOKE ALL ON TABLE public.steam_percentile_models FROM PUBLIC, anon, authenticated;
+REVOKE ALL ON TABLE public.steam_scoring_config FROM PUBLIC, anon, authenticated;
+REVOKE ALL ON TABLE public.steam_forecast_markets FROM PUBLIC, anon, authenticated;
+REVOKE ALL ON TABLE public.steam_prediction_versions FROM PUBLIC, anon, authenticated;
+REVOKE ALL ON TABLE public.steam_market_daily_snapshots FROM PUBLIC, anon, authenticated;
+REVOKE ALL ON TABLE public.steam_market_snapshot_predictions FROM PUBLIC, anon, authenticated;
+REVOKE ALL ON TABLE public.steam_market_results FROM PUBLIC, anon, authenticated;
+REVOKE ALL ON TABLE public.steam_score_runs FROM PUBLIC, anon, authenticated;
+REVOKE ALL ON TABLE public.steam_prediction_score_entries FROM PUBLIC, anon, authenticated;
+REVOKE ALL ON TABLE public.steam_user_leaderboard_stats FROM PUBLIC, anon, authenticated;
+GRANT SELECT ON TABLE public.steam_forecast_markets TO anon, authenticated;
+GRANT SELECT ON TABLE public.steam_prediction_versions TO authenticated;
+GRANT SELECT ON TABLE public.steam_market_results TO anon, authenticated;
+GRANT SELECT ON TABLE public.steam_prediction_score_entries TO authenticated;
+GRANT SELECT ON TABLE public.steam_user_leaderboard_stats TO anon, authenticated;
+GRANT ALL ON TABLE public.steam_percentile_models TO service_role;
+GRANT ALL ON TABLE public.steam_scoring_config TO service_role;
+GRANT ALL ON TABLE public.steam_forecast_markets TO service_role;
+GRANT ALL ON TABLE public.steam_prediction_versions TO service_role;
+GRANT ALL ON TABLE public.steam_market_daily_snapshots TO service_role;
+GRANT ALL ON TABLE public.steam_market_snapshot_predictions TO service_role;
+GRANT ALL ON TABLE public.steam_market_results TO service_role;
+GRANT ALL ON TABLE public.steam_score_runs TO service_role;
+GRANT ALL ON TABLE public.steam_prediction_score_entries TO service_role;
+GRANT ALL ON TABLE public.steam_user_leaderboard_stats TO service_role;
+
+DROP POLICY steam_bets_insert_own ON public.steam_bets;
+REVOKE INSERT ON TABLE public.steam_bets FROM authenticated;
+
+REVOKE ALL ON FUNCTION public.ensure_steam_points_system() FROM PUBLIC, anon, authenticated;
+REVOKE ALL ON FUNCTION public.steam_percentile_value(text, integer, numeric) FROM PUBLIC;
+REVOKE ALL ON FUNCTION public.sync_steam_forecast_markets() FROM PUBLIC, anon, authenticated;
+REVOKE ALL ON FUNCTION public.lock_due_steam_forecast_markets() FROM PUBLIC, anon, authenticated;
+REVOKE ALL ON FUNCTION public.submit_steam_prediction(bigint, text, numeric) FROM PUBLIC;
+REVOKE ALL ON FUNCTION public.create_steam_market_snapshots(timestamptz) FROM PUBLIC, anon, authenticated;
+REVOKE ALL ON FUNCTION public.rebuild_steam_leaderboard_stats() FROM PUBLIC, anon, authenticated;
+REVOKE ALL ON FUNCTION public.resolve_steam_forecast_market(uuid, numeric, text, timestamptz, text) FROM PUBLIC, anon;
+REVOKE ALL ON FUNCTION public.recalculate_steam_forecast_market(uuid, text) FROM PUBLIC, anon;
+REVOKE ALL ON FUNCTION public.void_steam_forecast_market(uuid, text) FROM PUBLIC, anon;
+REVOKE ALL ON FUNCTION public.process_steam_market_cycle() FROM PUBLIC, anon, authenticated;
+REVOKE ALL ON FUNCTION public.get_steam_prediction_states(bigint[]) FROM PUBLIC;
+REVOKE ALL ON FUNCTION public.get_steam_points_leaderboard(text, integer, integer) FROM PUBLIC;
+REVOKE ALL ON FUNCTION public.get_steam_resolution_queue() FROM PUBLIC, anon;
+GRANT EXECUTE ON FUNCTION public.ensure_steam_points_system() TO service_role;
+GRANT EXECUTE ON FUNCTION public.steam_percentile_value(text, integer, numeric) TO anon, authenticated, service_role;
+GRANT EXECUTE ON FUNCTION public.sync_steam_forecast_markets() TO service_role;
+GRANT EXECUTE ON FUNCTION public.lock_due_steam_forecast_markets() TO service_role;
+GRANT EXECUTE ON FUNCTION public.submit_steam_prediction(bigint, text, numeric) TO authenticated, service_role;
+GRANT EXECUTE ON FUNCTION public.create_steam_market_snapshots(timestamptz) TO service_role;
+GRANT EXECUTE ON FUNCTION public.rebuild_steam_leaderboard_stats() TO service_role;
+GRANT EXECUTE ON FUNCTION public.resolve_steam_forecast_market(uuid, numeric, text, timestamptz, text) TO authenticated, service_role;
+GRANT EXECUTE ON FUNCTION public.recalculate_steam_forecast_market(uuid, text) TO authenticated, service_role;
+GRANT EXECUTE ON FUNCTION public.void_steam_forecast_market(uuid, text) TO authenticated, service_role;
+GRANT EXECUTE ON FUNCTION public.process_steam_market_cycle() TO service_role;
+GRANT EXECUTE ON FUNCTION public.get_steam_prediction_states(bigint[]) TO anon, authenticated, service_role;
+GRANT EXECUTE ON FUNCTION public.get_steam_points_leaderboard(text, integer, integer) TO anon, authenticated, service_role;
+GRANT EXECUTE ON FUNCTION public.get_steam_resolution_queue() TO authenticated, service_role;

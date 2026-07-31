@@ -24,8 +24,8 @@ export default async function Navbar() {
                 <b>{viewer.bets}</b>
               </span>
               <span>
-                <strong>Wins</strong>
-                <b>{viewer.wins}</b>
+                <strong>Points</strong>
+                <b>{Math.round(viewer.points * 10) / 10}</b>
               </span>
             </div>
             <AccountMenu viewer={viewer} />
