@@ -1,4 +1,6 @@
 .env.local
+.env.staging.local
+apps/staging-database/supabase/schemas/base/
 .env.*.local
 node_modules
 tsconfig.tsbuildinfo
@@ -29,7 +31,7 @@ yarn-error.log*
 
 # playwright
 test-results/
-playwright/.auth/
+**/playwright/.auth/
 
 # Legacy ascii/one CLI ignore file
 .oneignore
@@ -37,7 +39,9 @@ playwright/.auth/
 # local runtime logs
 .steam-bets-server.*.log
 .steambets-sites.*.log
+.staging-server.*.log
 /steamdb-all-time-peaks/
 
 # Supabase CLI link state
 **/supabase/.temp/
+**/supabase/.branches/

@@ -43,6 +43,12 @@ importers:
         specifier: workspace:*
         version: link:../../packages/typescript-config
 
+  apps/staging-database:
+    dependencies:
+      supabase:
+        specifier: ^2.98.2
+        version: 2.98.2
+
   apps/web:
     dependencies:
       '@effect/platform':

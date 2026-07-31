@@ -8,6 +8,7 @@ export const PROTECTED_ROUTE_PATTERNS = [
   "/private-items{/*path}",
   "/items{/*path}",
   "/item{/*path}",
+  "/internal{/*path}",
 ] as const;
 
 export function isProtectedRoute(pathname: string): boolean {

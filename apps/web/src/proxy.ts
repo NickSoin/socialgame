@@ -1,4 +1,4 @@
-import { type NextRequest } from 'next/server';
+import { NextResponse, type NextRequest } from 'next/server';
 import { match } from 'path-to-regexp';
 import { updateSession } from './supabase-clients/middleware';
 
@@ -6,6 +6,15 @@ const apiRoutes = ['/api{/*path}'];
 
 export async function proxy(request: NextRequest) {
   const pathname = request.nextUrl.pathname;
+  const host = (request.headers.get('x-forwarded-host') ?? request.headers.get('host') ?? '')
+    .split(':')[0]
+    .toLowerCase();
+
+  if (host === 'admin.staging.nexthitmarket.com' && pathname === '/') {
+    const url = request.nextUrl.clone();
+    url.pathname = '/internal/staging-admin';
+    return NextResponse.redirect(url);
+  }
 
   // API routes bypass the proxy for this project.
   if (apiRoutes.some((route) => match(route)(pathname))) {

@@ -11,4 +11,10 @@ function getSiteUrl() {
 module.exports = {
   siteUrl: getSiteUrl(),
   generateRobotsTxt: true,
+  exclude: ['/api/*', '/auth/*', '/internal/*'],
+  robotsTxtOptions: {
+    policies: process.env.APP_ENV === 'staging'
+      ? [{ userAgent: '*', disallow: '/' }]
+      : [{ userAgent: '*', allow: '/' }],
+  },
 };
