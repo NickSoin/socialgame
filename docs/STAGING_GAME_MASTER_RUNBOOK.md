@@ -31,6 +31,23 @@ STAGING_ALLOWED_HOSTS=staging.nexthitmarket.com,admin.staging.nexthitmarket.com
 
 The staging database composes the production declarative schema with `apps/staging-database/supabase/schemas/staging.sql`. The generated base-schema copies are ignored. Schema edits belong in declarative SQL; generate migrations from `apps/staging-database` with `pnpm db:diff -- -f <name>`.
 
+### Copy the game catalog from production
+
+Copy only the non-personal game catalog and its compressed screenshots. Auth users,
+profiles, forecasts, points, role assignments, and simulation data remain isolated.
+
+```powershell
+$env:SOURCE_SUPABASE_URL='https://<production-project>.supabase.co'
+$env:SOURCE_SUPABASE_SECRET_KEY='<production-secret-key>'
+$env:TARGET_SUPABASE_URL='https://<staging-project>.supabase.co'
+$env:TARGET_SUPABASE_SECRET_KEY='<staging-secret-key>'
+pnpm --filter database steam:copy-catalog
+```
+
+The command is safe to rerun: it upserts `steam_games`, copies the
+`steam-game-media` objects, upserts their metadata, and verifies the resulting
+game, Popular Upcoming, and media counts.
+
 ## Access model
 
 - Every verified Supabase Auth user starts as `user`.
