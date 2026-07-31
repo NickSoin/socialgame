@@ -50,10 +50,7 @@ export async function getLatestEmailForAddress(
         const detail = (await detailResponse
           .json()
           .catch(() => null)) as InbucketMessageDetail | null;
-        if (
-          detail?.Text &&
-          (!textIncludes || detail.Text.includes(textIncludes))
-        ) {
+        if (detail?.Text && (!textIncludes || detail.Text.includes(textIncludes))) {
           return detail;
         }
       }
@@ -76,10 +73,7 @@ export function extractConfirmationLink(
       const link = new URL(rawURL.replaceAll("&amp;", "&"));
       if (link.pathname !== "/auth/v1/verify") continue;
 
-      link.searchParams.set(
-        "redirect_to",
-        new URL(redirectPath, siteURL).toString(),
-      );
+      link.searchParams.set("redirect_to", new URL(redirectPath, siteURL).toString());
       return link.toString();
     } catch {
       // Keep looking when an email contains a malformed or unrelated URL.
@@ -97,11 +91,10 @@ export async function signupUserHelper({
   emailAddress: string;
 }): Promise<void> {
   await page.goto("/sign-up");
-  await page.getByRole("tab", { name: "Password" }).click();
-  await page.getByLabel("Email address").fill(emailAddress);
-  await page.locator("#sign-up-password").fill(TEST_PASSWORD);
-  await page.getByRole("button", { name: "Sign up" }).click();
-  await expect(page.getByText("Confirmation Link Sent")).toBeVisible();
+  await page.getByLabel("Email").fill(emailAddress);
+  await page.getByLabel("Password").fill(TEST_PASSWORD);
+  await page.getByRole("button", { name: "Create account" }).click();
+  await expect(page.getByRole("heading", { name: "Check your email" })).toBeVisible();
 
   const emailDetail = await getLatestEmailForAddress(emailAddress);
   if (!emailDetail) throw new Error("No confirmation email received");
@@ -110,5 +103,5 @@ export async function signupUserHelper({
   if (!link) throw new Error("Could not find confirmation link in email");
 
   await page.goto(link);
-  await page.waitForURL(/\/dashboard(?:[/?#]|$)/, { timeout: 30000 });
+  await page.waitForURL((url) => url.pathname === "/", { timeout: 30000 });
 }
