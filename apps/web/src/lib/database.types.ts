@@ -786,6 +786,8 @@ export type Database = {
         Row: {
           classification_updated_at: string | null
           first_seen_at: string
+          follower_count: number | null
+          followers_updated_at: string | null
           image_url: string
           is_popular_upcoming: boolean
           is_wishlisted: boolean
@@ -818,6 +820,8 @@ export type Database = {
         Insert: {
           classification_updated_at?: string | null
           first_seen_at?: string
+          follower_count?: number | null
+          followers_updated_at?: string | null
           image_url: string
           is_popular_upcoming?: boolean
           is_wishlisted?: boolean
@@ -850,6 +854,8 @@ export type Database = {
         Update: {
           classification_updated_at?: string | null
           first_seen_at?: string
+          follower_count?: number | null
+          followers_updated_at?: string | null
           image_url?: string
           is_popular_upcoming?: boolean
           is_wishlisted?: boolean

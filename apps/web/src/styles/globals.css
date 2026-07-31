@@ -533,10 +533,16 @@ button:disabled {
   aspect-ratio: 460 / 215;
   border-radius: 27px 0 0 27px;
 }
-.sb-game-hero__rank {
+.sb-game-hero__metrics {
   position: absolute;
   bottom: 8px;
   left: 8px;
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+}
+.sb-game-hero__rank,
+.sb-game-hero__followers {
   display: inline-flex;
   align-items: center;
   justify-content: center;
@@ -553,9 +559,17 @@ button:disabled {
   line-height: 1;
   box-shadow: 0 1px 3px rgb(0 0 0 / 30%);
 }
-.sb-game-hero.is-search .sb-game-hero__rank {
+.sb-game-hero__followers {
+  gap: 4px;
+  border-color: rgb(255 255 255 / 35%);
+  color: #f7fcff;
+  font-weight: 650;
+}
+.sb-game-hero.is-search .sb-game-hero__metrics {
   bottom: 4px;
   left: 4px;
+}
+.sb-game-hero.is-search .sb-game-hero__rank {
   min-width: 27px;
   height: 18px;
   padding-inline: 4px;

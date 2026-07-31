@@ -12,6 +12,7 @@ const jobs = [
   ["sync-steam-catalog-after-upstream", "15 1,6,11,16,21 * * *", "sync-steam-catalog"],
   ["sync-steam-popular-every-3-hours", "17 */3 * * *", "sync-steam-popular"],
   ["sync-steam-details-every-10-minutes", "2,12,22,32,42,52 * * * *", "sync-steam-details"],
+  ["sync-steam-followers-throughout-day", "1-59/4 * * * *", "sync-steam-followers"],
 ];
 const databaseJobs = [
   ["steam-market-cycle-every-5-minutes", "*/5 * * * *", "SELECT public.process_steam_market_cycle()"],
@@ -27,6 +28,7 @@ const managedJobNames = [
   "sync-steam-popular-every-2-hours",
   "sync-steam-details-every-2-hours",
   "sync-steam-details-hourly",
+  "sync-steam-followers-every-10-minutes",
   ...jobs.map(([name]) => name),
   ...databaseJobs.map(([name]) => name),
 ];

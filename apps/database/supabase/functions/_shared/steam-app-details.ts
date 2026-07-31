@@ -8,6 +8,7 @@ import {
 } from "./steam-media.ts";
 
 const TRUSTED_STORE_HOSTS = new Set(["store.steampowered.com"]);
+const TRUSTED_COMMUNITY_HOSTS = new Set(["steamcommunity.com"]);
 
 export type SteamAppDetails = {
   appType: string;
@@ -95,6 +96,29 @@ export async function fetchSteamStoreTags(appId: number): Promise<SteamStoreTagE
   return extractSteamStoreTags(await response.text());
 }
 
+export async function fetchSteamFollowerCount(appId: number): Promise<number | null> {
+  const url = new URL(`https://steamcommunity.com/games/${appId}/memberslistxml/`);
+  url.searchParams.set("xml", "1");
+  const response = await fetchWithRetry(
+    url,
+    3,
+    { Accept: "application/xml,text/xml" },
+    TRUSTED_COMMUNITY_HOSTS,
+  );
+  assertTrustedFinalUrl(response.url, TRUSTED_COMMUNITY_HOSTS);
+  const xml = await response.text();
+  const rawCount = xml.match(/<memberCount>\s*(?:<!\[CDATA\[)?\s*([\d,]+)\s*(?:\]\]>)?\s*<\/memberCount>/i)?.[1];
+  if (!rawCount) {
+    if (!/<groupDetails>/i.test(xml)) return null;
+    throw new SteamFetchError("invalid_followers_xml", `Steam returned malformed followers XML for app ${appId}`);
+  }
+  const count = Number(rawCount.replaceAll(",", ""));
+  if (!Number.isSafeInteger(count) || count < 0) {
+    throw new SteamFetchError("invalid_follower_count", `Steam returned an invalid follower count for app ${appId}`);
+  }
+  return count;
+}
+
 export function applySteamAppDetails<
   T extends {
     lifecycle_status: string;
@@ -160,7 +184,12 @@ async function fetchJsonWithRetry<T>(url: URL, attempts: number): Promise<T> {
   }
 }
 
-async function fetchWithRetry(url: URL, attempts: number, headers: Record<string, string>) {
+async function fetchWithRetry(
+  url: URL,
+  attempts: number,
+  headers: Record<string, string>,
+  trustedHosts = TRUSTED_STORE_HOSTS,
+) {
   let lastError: unknown;
   for (let attempt = 1; attempt <= attempts; attempt += 1) {
     const controller = new AbortController();
@@ -177,7 +206,7 @@ async function fetchWithRetry(url: URL, attempts: number, headers: Record<string
           "User-Agent": "NextHitMarket/1.0 (+https://nexthitmarket.com)",
         },
       });
-      assertTrustedFinalUrl(response.url, TRUSTED_STORE_HOSTS);
+      assertTrustedFinalUrl(response.url, trustedHosts);
       if (response.ok) return response;
       const retryAfter = parseRetryAfter(response.headers.get("retry-after"));
       const retryable = response.status === 429 || response.status >= 500;

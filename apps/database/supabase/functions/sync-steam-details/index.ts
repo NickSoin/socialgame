@@ -54,7 +54,7 @@ type SteamCatalogExclusionRow = {
 
 type EnrichmentState = {
   steam_app_id: number;
-  component: "release" | "tags" | "media";
+  component: "release" | "tags" | "media" | "followers";
   status: "pending" | "complete" | "partial" | "not_available" | "error";
   last_attempt_at: string | null;
   last_success_at: string | null;
@@ -264,6 +264,7 @@ async function selectCandidates(
       `and(component.in.(tags,media),last_success_at.lt.${slowCutoff})`,
       "last_success_at.is.null",
     ].join(","))
+    .in("component", ["release", "tags", "media"])
     .or(`retry_after.is.null,retry_after.lte.${now.toISOString()}`)
     .order("last_attempt_at", { ascending: true, nullsFirst: true })
     .limit(Math.min(limit * 4, 800));

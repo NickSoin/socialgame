@@ -11,6 +11,7 @@ export type SteamGameCatalogRecord = {
   lifecycle_status: string;
   pre_release_rank: number | null;
   wishlist_rank: number | null;
+  follower_count?: number | null;
   steam_game_media?: SteamHoverPreviewRecord[] | null;
 };
 
@@ -25,6 +26,7 @@ export function toSteamUpcomingGame(row: SteamGameCatalogRecord): SteamUpcomingG
     releaseLabel: row.release_label || "TBA",
     tags: row.tags.filter((tag) => tag.trim()).slice(0, 5),
     wishlistRank: row.wishlist_rank ?? row.pre_release_rank,
+    followerCount: row.follower_count ?? null,
     targets: STEAM_BET_TARGETS.map((target) => ({
       ...target,
       averageValue: null,
