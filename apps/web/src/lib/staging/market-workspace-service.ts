@@ -42,9 +42,9 @@ const METRICS: readonly StagingMetric[] = [
 ];
 
 const DEFAULT_SCENARIO_VALUES: Record<StagingMetric, number> = {
-  first_weekend_ccu: 1_000,
-  first_month_reviews: 100,
-  full_price_us: 19.99,
+  first_weekend_ccu: 2_000,
+  first_month_reviews: 1_200,
+  full_price_us: 12,
 };
 
 function assertNoError(error: { message: string } | null, context: string) {
@@ -312,6 +312,7 @@ async function resolveWorkspaceGame(
   client: SupabaseClient,
   simulation: SimulationRow,
   steamAppId: number,
+  actualValues: Record<StagingMetric, number>,
   principal: StagingPrincipal,
 ) {
   const prepared = await ensureWorkspaceGame(client, simulation, steamAppId);
@@ -328,17 +329,7 @@ async function resolveWorkspaceGame(
   const resolved: Array<{ marketId: string; actualValue: number }> = [];
   for (const market of prepared.markets) {
     if (market.status === 'resolved' || market.status === 'void') continue;
-    const forecastsResult = await client
-      .from('simulation_forecast_versions')
-      .select('raw_value')
-      .eq('simulation_id', simulation.id)
-      .eq('market_id', market.id)
-      .is('valid_to', null);
-    assertNoError(forecastsResult.error, 'Could not load forecasts for resolution');
-    const values = rows<{ raw_value: number }>(forecastsResult.data).map((row) => Number(row.raw_value));
-    const actualValue = values.length
-      ? values.reduce((sum, value) => sum + value, 0) / values.length
-      : Number(prepared.game.scenario_values?.[market.metric_type] ?? DEFAULT_SCENARIO_VALUES[market.metric_type]);
+    const actualValue = actualValues[market.metric_type];
     if (market.status === 'open') {
       await executeSimulationCommand({ action: 'lock', simulationId: simulation.id, marketId: market.id }, principal);
     }
@@ -373,7 +364,7 @@ export async function executeStagingWorkspaceCommand(
     case 'batch_forecasts':
       return addRandomBatch(client, simulation, command);
     case 'resolve_game':
-      return resolveWorkspaceGame(client, simulation, command.steamAppId, principal);
+      return resolveWorkspaceGame(client, simulation, command.steamAppId, command.actualValues, principal);
   }
 }
 

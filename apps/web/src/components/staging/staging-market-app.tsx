@@ -22,6 +22,7 @@ import {
   parseSteamBetDraft,
   sanitizeSteamBetDraft,
   type SteamBetTarget,
+  type SteamBetTargetKey,
   type SteamUpcomingGame,
 } from '@/lib/steam-bets';
 import type {
@@ -38,6 +39,12 @@ const compactNumber = new Intl.NumberFormat('en-US', {
 });
 
 const pointNumber = new Intl.NumberFormat('en-US', { maximumFractionDigits: 1 });
+
+const DEFAULT_RESOLUTION_VALUES: Record<SteamBetTargetKey, string> = {
+  first_weekend_ccu: '2000',
+  first_month_reviews: '1200',
+  full_price_us: '12',
+};
 
 const TABS: Array<{ id: FeedMode; label: string; icon: typeof TrendingUp }> = [
   { id: 'trending', label: 'Trending', icon: TrendingUp },
@@ -176,14 +183,18 @@ function ManipulationPanel({
   disabled,
   game,
   onCommand,
+  onResolutionValueChange,
   players,
+  resolutionValue,
   target,
 }: {
   activePlayerId: string | null;
   disabled: boolean;
   game: SteamUpcomingGame;
   onCommand: (command: Record<string, unknown>, message: string) => void;
+  onResolutionValueChange: (value: string) => void;
   players: StagingWorkspacePlayer[];
+  resolutionValue: string;
   target: SteamBetTarget;
 }) {
   const [playerId, setPlayerId] = useState(activePlayerId ?? players[0]?.id ?? '');
@@ -273,6 +284,16 @@ function ManipulationPanel({
             }, `${parsedCount} randomized forecasts added.`)}
           >Randomize</button>
         </div>
+        <label className="sb-manipulation-resolution">
+          <span>Resolve result</span>
+          <input
+            aria-label={`${game.name} ${target.label} resolve result`}
+            inputMode={target.step === 1 ? 'numeric' : 'decimal'}
+            maxLength={target.maxLength}
+            value={resolutionValue}
+            onChange={(event) => onResolutionValueChange(sanitizeSteamBetDraft(target.key, event.target.value))}
+          />
+        </label>
       </div>
     </div>
   );
@@ -283,14 +304,18 @@ function StagingForecastField({
   disabled,
   game,
   onCommand,
+  onResolutionValueChange,
   players,
+  resolutionValue,
   target,
 }: {
   activePlayerId: string | null;
   disabled: boolean;
   game: SteamUpcomingGame;
   onCommand: (command: Record<string, unknown>, message: string) => void;
+  onResolutionValueChange: (value: string) => void;
   players: StagingWorkspacePlayer[];
+  resolutionValue: string;
   target: SteamBetTarget;
 }) {
   const [draft, setDraft] = useState(target.userValue === null ? '' : String(target.userValue));
@@ -359,7 +384,9 @@ function StagingForecastField({
         disabled={disabled}
         game={game}
         onCommand={onCommand}
+        onResolutionValueChange={onResolutionValueChange}
         players={players}
+        resolutionValue={resolutionValue}
         target={target}
       />
     </div>
@@ -382,7 +409,14 @@ function StagingGameCard({
   priority: boolean;
 }) {
   const [previewActive, setPreviewActive] = useState(false);
+  const [resolutionValues, setResolutionValues] = useState(DEFAULT_RESOLUTION_VALUES);
   const completed = game.lifecycleStatus === 'released';
+  const parsedResolutionValues = {
+    first_weekend_ccu: parseSteamBetDraft('first_weekend_ccu', resolutionValues.first_weekend_ccu),
+    first_month_reviews: parseSteamBetDraft('first_month_reviews', resolutionValues.first_month_reviews),
+    full_price_us: parseSteamBetDraft('full_price_us', resolutionValues.full_price_us),
+  };
+  const canResolve = Object.values(parsedResolutionValues).every((value) => value !== null);
 
   return (
     <div className="sb-staging-card-row">
@@ -399,7 +433,17 @@ function StagingGameCard({
           </header>
           <div className="sb-game-card__targets">
             {game.targets.map((target) => (
-              <StagingForecastField activePlayerId={activePlayerId} disabled={disabled} game={game} key={target.key} onCommand={onCommand} players={players} target={target} />
+              <StagingForecastField
+                activePlayerId={activePlayerId}
+                disabled={disabled}
+                game={game}
+                key={target.key}
+                onCommand={onCommand}
+                onResolutionValueChange={(value) => setResolutionValues((current) => ({ ...current, [target.key]: value }))}
+                players={players}
+                resolutionValue={resolutionValues[target.key]}
+                target={target}
+              />
             ))}
           </div>
         </div>
@@ -409,8 +453,15 @@ function StagingGameCard({
         <button
           type="button"
           aria-label={completed ? `${game.name} resolved` : `Resolve ${game.name}`}
-          disabled={disabled || completed}
-          onClick={() => onCommand({ action: 'resolve_game', steamAppId: game.appId }, `${game.name} resolved and moved to Completed.`)}
+          disabled={disabled || completed || !canResolve}
+          onClick={() => {
+            if (!canResolve) return;
+            onCommand({
+              action: 'resolve_game',
+              steamAppId: game.appId,
+              actualValues: parsedResolutionValues,
+            }, `${game.name} resolved and moved to Completed.`);
+          }}
         >
           <CircleCheckBig size={17} aria-hidden="true" />
           {completed ? 'Resolved' : 'Resolve'}

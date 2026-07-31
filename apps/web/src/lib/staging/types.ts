@@ -83,4 +83,9 @@ export type StagingWorkspaceCommand =
       minimum: number;
       maximum: number;
     }
-  | { action: 'resolve_game'; simulationId: string; steamAppId: number };
+  | {
+      action: 'resolve_game';
+      simulationId: string;
+      steamAppId: number;
+      actualValues: Record<StagingMetric, number>;
+    };
