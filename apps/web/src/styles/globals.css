@@ -461,6 +461,16 @@ button:disabled {
   content-visibility: auto;
   contain-intrinsic-size: 166px;
 }
+.sb-game-card__steam-link {
+  position: absolute;
+  inset: 0;
+  z-index: 1;
+  border-radius: inherit;
+}
+.sb-game-card__steam-link:focus-visible {
+  outline: 3px solid #bfd6ff;
+  outline-offset: 3px;
+}
 @media (hover: hover) and (pointer: fine) {
   .sb-game-card:hover {
     transform: translateY(-2px);
@@ -539,23 +549,6 @@ button:disabled {
   gap: 5px;
   min-width: 0;
 }
-.sb-steam-store-link {
-  display: inline-flex;
-  flex: 0 0 auto;
-  align-items: center;
-  justify-content: center;
-  width: 16px;
-  height: 16px;
-  border-radius: 50%;
-}
-.sb-steam-store-link img {
-  display: block;
-  width: 14px;
-  height: 14px;
-}
-.sb-steam-store-link:hover {
-  opacity: 0.72;
-}
 .sb-game-card__header h2 {
   min-width: 0;
   margin: 0;
@@ -590,6 +583,8 @@ button:disabled {
   white-space: nowrap;
 }
 .sb-game-card__targets {
+  position: relative;
+  z-index: 2;
   display: grid;
   grid-template-columns: repeat(3, minmax(0, 1fr));
   align-items: start;
@@ -617,7 +612,7 @@ button:disabled {
   min-width: 0;
   color: var(--foreground);
   overflow: hidden;
-  font-size: 10px;
+  font-size: 12px;
   font-weight: 600;
   line-height: 1;
   text-overflow: ellipsis;

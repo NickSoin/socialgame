@@ -1,4 +1,4 @@
-const MAX_TAGS = 6;
+const MAX_TAGS = 5;
 const MAX_TAG_LENGTH = 40;
 
 export function normalizeSteamGenres(value: unknown): string[] {

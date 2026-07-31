@@ -457,6 +457,7 @@ export type Database = {
           source: string
           source_updated_at: string
           steam_app_id: number
+          steam_data_attempted_at: string | null
           steam_data_updated_at: string | null
           tags: string[]
           updated_at: string
@@ -479,6 +480,7 @@ export type Database = {
           source?: string
           source_updated_at: string
           steam_app_id: number
+          steam_data_attempted_at?: string | null
           steam_data_updated_at?: string | null
           tags?: string[]
           updated_at?: string
@@ -501,6 +503,7 @@ export type Database = {
           source?: string
           source_updated_at?: string
           steam_app_id?: number
+          steam_data_attempted_at?: string | null
           steam_data_updated_at?: string | null
           tags?: string[]
           updated_at?: string

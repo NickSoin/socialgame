@@ -1,6 +1,7 @@
-import { cleanup, fireEvent, render, screen } from "@testing-library/react";
+import { act, cleanup, fireEvent, render, screen } from "@testing-library/react";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { STEAM_BET_TARGETS, type SteamUpcomingGame } from "@/lib/steam-bets";
+import { getSteamGameHeroUrl } from "@/lib/steam-game-hero";
 import { ForecastCard } from "./forecast-card";
 
 const mocks = vi.hoisted(() => ({ execute: vi.fn() }));
@@ -33,6 +34,7 @@ afterEach(() => {
   cleanup();
   mocks.execute.mockReset();
   vi.restoreAllMocks();
+  vi.useRealTimers();
 });
 
 describe("ForecastCard", () => {
@@ -47,6 +49,24 @@ describe("ForecastCard", () => {
     expect(
       screen.getByRole("link", { name: "Open Input Limit Test on Steam" }).getAttribute("href"),
     ).toBe("https://store.steampowered.com/app/42/");
+    expect(document.querySelector('img[src*="favicon"]')).toBeNull();
+  });
+
+  it("cycles hero and two screenshots while the clickable card is hovered", () => {
+    vi.useFakeTimers();
+    const previewGame = { ...game, appId: 1368140, name: "Corsair Cove" };
+    const { container } = render(<ForecastCard game={previewGame} isAuthenticated />);
+    const card = container.querySelector(".sb-game-card") as HTMLElement;
+    const artwork = screen.getByRole("img", { name: "Corsair Cove artwork" });
+
+    fireEvent.mouseEnter(card);
+    expect(artwork.getAttribute("src")).toBe(getSteamGameHeroUrl(1368140));
+    act(() => vi.advanceTimersByTime(1000));
+    expect(artwork.getAttribute("src")).toBe("/game-previews/1368140-1.webp");
+    act(() => vi.advanceTimersByTime(1000));
+    expect(artwork.getAttribute("src")).toBe("/game-previews/1368140-2.webp");
+    act(() => vi.advanceTimersByTime(1000));
+    expect(artwork.getAttribute("src")).toBe(getSteamGameHeroUrl(1368140));
   });
 
   it("falls back to the Steam artwork resolver when a stored banner is missing", () => {
@@ -55,7 +75,7 @@ describe("ForecastCard", () => {
     const artwork = screen.getByRole("img", { name: "Input Limit Test artwork" });
     fireEvent.error(artwork);
 
-    expect(artwork.getAttribute("src")).toBe("/api/steam-artwork/42");
+    expect(artwork.getAttribute("src")).toBe(getSteamGameHeroUrl(42));
   });
 
   it("replaces a legacy Steam capsule image with the current GameHero artwork", () => {
@@ -68,7 +88,7 @@ describe("ForecastCard", () => {
     });
     fireEvent.load(artwork);
 
-    expect(artwork.getAttribute("src")).toBe("/api/steam-artwork/42");
+    expect(artwork.getAttribute("src")).toBe(getSteamGameHeroUrl(42));
   });
 
   it("replaces a legacy image that finished loading before hydration", () => {
@@ -79,7 +99,7 @@ describe("ForecastCard", () => {
     render(<ForecastCard game={game} isAuthenticated />);
 
     expect(screen.getByRole("img", { name: "Input Limit Test artwork" }).getAttribute("src")).toBe(
-      "/api/steam-artwork/42",
+      getSteamGameHeroUrl(42),
     );
   });
 

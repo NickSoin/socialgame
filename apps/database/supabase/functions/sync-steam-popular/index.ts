@@ -1,16 +1,14 @@
 import "jsr:@supabase/functions-js/edge-runtime.d.ts";
 import { createClient } from "npm:@supabase/supabase-js@2.105.4";
 import {
-  formatSteamReleaseLabel,
-  normalizeSteamReleaseDate,
-} from "../_shared/steam-release-date.ts";
+  applySteamAppDetails,
+  fetchSteamAppDetails,
+} from "../_shared/steam-app-details.ts";
 import { parseSteamPopularUpcoming } from "../_shared/steam-popular-upcoming.ts";
-import { normalizeSteamGenres } from "../_shared/steam-tags.ts";
 
 const PAGE_SIZE = 100;
 const PAGE_COUNT = 2;
 const DETAILS_CONCURRENCY = 8;
-const MIN_REFRESH_INTERVAL_MS = 90 * 60 * 1000;
 
 function steamPopularUpcomingUrl(start: number) {
   const url = new URL("https://store.steampowered.com/search/results/");
@@ -53,22 +51,6 @@ Deno.serve(async (request) => {
   });
 
   try {
-    const { data: latestRefresh, error: latestRefreshError } = await supabase
-      .from("steam_games")
-      .select("steam_data_updated_at")
-      .not("steam_data_updated_at", "is", null)
-      .order("steam_data_updated_at", { ascending: false })
-      .limit(1)
-      .maybeSingle();
-    if (latestRefreshError) throw latestRefreshError;
-
-    const latestRefreshAt = latestRefresh?.steam_data_updated_at
-      ? new Date(latestRefresh.steam_data_updated_at).valueOf()
-      : 0;
-    if (Date.now() - latestRefreshAt < MIN_REFRESH_INTERVAL_MS) {
-      return Response.json({ status: "fresh", refreshedAt: latestRefresh?.steam_data_updated_at });
-    }
-
     const pages = await Promise.all(
       Array.from({ length: PAGE_COUNT }, (_, pageIndex) =>
         fetchJsonWithRetry<{ results_html?: string }>(
@@ -106,27 +88,15 @@ Deno.serve(async (request) => {
       async (entry) => {
         const catalogRow = catalogById.get(entry.appId)!;
         const details = await fetchSteamAppDetails(entry.appId);
-        const releaseDate = details.fetched
-          ? details.releaseDate
-          : normalizeSteamReleaseDate(entry.releaseText);
-        const released = details.fetched && details.released;
+        const enrichedRow = details
+          ? applySteamAppDetails(catalogRow, details, refreshedAt)
+          : catalogRow;
+        const released = details?.released === true;
         return {
-          ...catalogRow,
-          lifecycle_status: released ? "released" : "upcoming",
-          wishlist_rank: released ? null : catalogRow.wishlist_rank,
-          wishlist_estimate: released ? null : catalogRow.wishlist_estimate,
-          is_wishlisted: released ? false : true,
+          ...enrichedRow,
           is_popular_upcoming: !released,
           popular_upcoming_position: released ? null : entry.position,
-          release_date: releaseDate,
-          release_label: formatSteamReleaseLabel(releaseDate),
-          tags: details.tags.length ? details.tags : catalogRow.tags,
-          released_at: released
-            ? releaseDate
-              ? `${releaseDate}T00:00:00.000Z`
-              : refreshedAt
-            : null,
-          steam_data_updated_at: refreshedAt,
+          steam_data_attempted_at: refreshedAt,
         };
       },
     );
@@ -136,11 +106,17 @@ Deno.serve(async (request) => {
       .upsert(refreshedRows, { onConflict: "steam_app_id" });
     if (upsertError) throw upsertError;
 
-    const { error: staleError } = await supabase
+    const activePopularIds = refreshedRows
+      .filter((row) => row.is_popular_upcoming)
+      .map((row) => Number(row.steam_app_id));
+    let staleQuery = supabase
       .from("steam_games")
       .update({ is_popular_upcoming: false, popular_upcoming_position: null })
-      .eq("is_popular_upcoming", true)
-      .lt("steam_data_updated_at", refreshedAt);
+      .eq("is_popular_upcoming", true);
+    if (activePopularIds.length) {
+      staleQuery = staleQuery.not("steam_app_id", "in", `(${activePopularIds.join(",")})`);
+    }
+    const { error: staleError } = await staleQuery;
     if (staleError) throw staleError;
 
     const popularCount = refreshedRows.filter((row) => row.is_popular_upcoming).length;
@@ -158,36 +134,6 @@ Deno.serve(async (request) => {
     return Response.json({ error: "Steam popular upcoming sync failed" }, { status: 500 });
   }
 });
-
-async function fetchSteamAppDetails(appId: number) {
-  const url = new URL("https://store.steampowered.com/api/appdetails");
-  url.searchParams.set("appids", String(appId));
-  url.searchParams.set("cc", "us");
-  url.searchParams.set("l", "english");
-
-  try {
-    const payload = await fetchJsonWithRetry<Record<string, {
-      success?: boolean;
-      data?: {
-        genres?: unknown;
-        release_date?: { coming_soon?: unknown; date?: unknown };
-      };
-    }>>(url.toString(), 2);
-    const app = payload[String(appId)];
-    if (!app?.success || !app.data) {
-      return { fetched: false, releaseDate: null, released: false, tags: [] };
-    }
-    return {
-      fetched: true,
-      releaseDate: normalizeSteamReleaseDate(app.data.release_date?.date),
-      released: app.data.release_date?.coming_soon === false,
-      tags: normalizeSteamGenres(app.data.genres),
-    };
-  } catch (error) {
-    console.warn(`Could not refresh Steam release date for app ${appId}`, error);
-    return { fetched: false, releaseDate: null, released: false, tags: [] };
-  }
-}
 
 async function fetchJsonWithRetry<T>(url: string, attempts = 3): Promise<T> {
   let lastError: unknown;

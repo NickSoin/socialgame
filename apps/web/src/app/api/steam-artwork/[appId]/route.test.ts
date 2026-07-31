@@ -8,6 +8,7 @@ afterEach(() => {
 
 describe('Steam artwork resolver', () => {
   it('prefers the trusted Steam GameHero image from the store page', async () => {
+    vi.stubEnv('NEXT_PUBLIC_SUPABASE_URL', 'http://127.0.0.1:54321');
     vi.stubGlobal(
       'fetch',
       vi.fn().mockResolvedValue(
@@ -75,6 +76,7 @@ describe('Steam artwork resolver', () => {
   });
 
   it('does not redirect to an untrusted image host', async () => {
+    vi.stubEnv('NEXT_PUBLIC_SUPABASE_URL', 'http://127.0.0.1:54321');
     vi.stubGlobal(
       'fetch',
       vi.fn().mockResolvedValue(

@@ -20,6 +20,6 @@ describe("normalizeSteamGenres", () => {
         { description: 42 },
         ...Array.from({ length: 8 }, (_, index) => ({ description: `Genre ${index + 1}` })),
       ]),
-    ).toEqual(["Genre 1", "Genre 2", "Genre 3", "Genre 4", "Genre 5", "Genre 6"]);
+    ).toEqual(["Genre 1", "Genre 2", "Genre 3", "Genre 4", "Genre 5"]);
   });
 });

@@ -86,6 +86,7 @@ CREATE TABLE public.steam_games (
   is_popular_upcoming boolean NOT NULL DEFAULT false,
   popular_upcoming_position integer,
   steam_data_updated_at timestamptz,
+  steam_data_attempted_at timestamptz,
   tags text[] NOT NULL DEFAULT '{}'::text[],
   CONSTRAINT steam_games_app_id_check CHECK (steam_app_id > 0),
   CONSTRAINT steam_games_name_check CHECK (char_length(name) BETWEEN 1 AND 250),
@@ -154,6 +155,10 @@ CREATE INDEX steam_games_name_search_idx
 
 CREATE INDEX steam_games_source_updated_idx
   ON public.steam_games (source_updated_at DESC);
+
+CREATE INDEX steam_games_details_refresh_idx
+  ON public.steam_games (steam_data_attempted_at ASC NULLS FIRST, wishlist_rank ASC NULLS LAST)
+  WHERE lifecycle_status = 'upcoming' AND is_wishlisted = true;
 
 CREATE INDEX steam_games_popular_release_rank_idx
   ON public.steam_games (

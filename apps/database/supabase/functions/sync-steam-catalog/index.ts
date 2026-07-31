@@ -2,14 +2,9 @@ import 'jsr:@supabase/functions-js/edge-runtime.d.ts';
 import { createClient } from 'npm:@supabase/supabase-js@2.105.4';
 import {
   buildSteamCatalogRows,
-  fallbackHeaderImage,
-  formatReleaseLabel,
-  getTopUpcomingAppIds,
-  type SteamAppDetails,
+  type ExistingSteamCatalogRow,
   type WishlistLedgerEntry,
 } from './catalog.ts';
-import { normalizeSteamReleaseDate } from '../_shared/steam-release-date.ts';
-import { normalizeSteamGenres } from '../_shared/steam-tags.ts';
 
 const SOURCE_META_URL =
   'https://nicksoin.github.io/SteamTopWishlistsRank/v2/meta.json';
@@ -17,17 +12,9 @@ const SOURCE_CURRENT_BASE_URL =
   'https://nicksoin.github.io/SteamTopWishlistsRank/v2/current';
 const SOURCE_LEDGER_URL =
   'https://raw.githubusercontent.com/NickSoin/SteamTopWishlistsRank/main/data/wishlist-ledger.json';
-const ENRICHED_GAME_COUNT = 200;
 const UPSERT_BATCH_SIZE = 500;
-const DETAILS_CONCURRENCY = 8;
 const SHARD_CONCURRENCY = 16;
 const RUNNING_LOCK_MS = 20 * 60 * 1000;
-const TRUSTED_IMAGE_HOSTS = new Set([
-  'shared.fastly.steamstatic.com',
-  'shared.akamai.steamstatic.com',
-  'cdn.akamai.steamstatic.com',
-  'steamcdn-a.akamaihd.net',
-]);
 
 type SourceMeta = {
   schemaVersion?: unknown;
@@ -135,21 +122,14 @@ Deno.serve(async (request) => {
       );
     }
 
-    const topUpcomingIds = getTopUpcomingAppIds(currentLedger, ENRICHED_GAME_COUNT);
-    const detailEntries = await mapWithConcurrency(
-      topUpcomingIds,
-      DETAILS_CONCURRENCY,
-      async (appId) => [appId, await fetchSteamAppDetails(appId)] as const,
-    );
-    const detailsByAppId = new Map(
-      detailEntries.filter(
-        (entry): entry is readonly [number, SteamAppDetails] => entry[1] !== null,
-      ),
-    );
+    // Catalog membership/rank comes from TopWishlisted. Steam-owned metadata is
+    // preserved here and refreshed only by the Steam details/popular syncs.
+    const existingByAppId = await fetchExistingCatalog(supabase);
 
     const now = new Date().toISOString();
     const rows = buildSteamCatalogRows({
-      detailsByAppId,
+      detailsByAppId: new Map(),
+      existingByAppId,
       ledger: currentLedger,
       now,
       sourceUpdatedAt,
@@ -201,7 +181,7 @@ Deno.serve(async (request) => {
       sourceUpdatedAt,
       currentCount,
       releasedCount,
-      enrichedCount: detailsByAppId.size,
+      preservedSteamDetailsCount: existingByAppId.size,
     });
   } catch (error) {
     const message = error instanceof Error ? error.message : String(error);
@@ -222,38 +202,22 @@ Deno.serve(async (request) => {
   }
 });
 
-async function fetchSteamAppDetails(appId: number): Promise<SteamAppDetails | null> {
-  const url = new URL('https://store.steampowered.com/api/appdetails');
-  url.searchParams.set('appids', String(appId));
-  url.searchParams.set('cc', 'us');
-  url.searchParams.set('l', 'english');
+async function fetchExistingCatalog(
+  supabase: ReturnType<typeof createClient>,
+): Promise<Map<number, ExistingSteamCatalogRow>> {
+  const rows: ExistingSteamCatalogRow[] = [];
 
-  try {
-    const payload = await fetchJsonWithRetry<Record<string, {
-      success?: boolean;
-      data?: {
-        header_image?: unknown;
-        genres?: unknown;
-        release_date?: { coming_soon?: unknown; date?: unknown };
-      };
-    }>>(url.toString(), 2);
-    const app = payload[String(appId)];
-    if (!app?.success || !app.data) return null;
-
-    const releaseDate = normalizeSteamReleaseDate(app.data.release_date?.date);
-    return {
-      imageUrl:
-        trustedImageUrl(app.data.header_image) ??
-        fallbackHeaderImage(appId),
-      releaseDate,
-      releaseLabel: releaseDate ? formatReleaseLabel(releaseDate) : 'TBA',
-      released: app.data.release_date?.coming_soon === false,
-      tags: normalizeSteamGenres(app.data.genres),
-    };
-  } catch (error) {
-    console.warn(`Could not enrich Steam app ${appId}`, error);
-    return null;
+  for (let offset = 0; ; offset += 1000) {
+    const { data, error } = await supabase
+      .from('steam_games')
+      .select('steam_app_id,image_url,release_date,release_label,tags')
+      .range(offset, offset + 999);
+    if (error) throw error;
+    rows.push(...((data ?? []) as ExistingSteamCatalogRow[]));
+    if ((data?.length ?? 0) < 1000) break;
   }
+
+  return new Map(rows.map((row) => [Number(row.steam_app_id), row]));
 }
 
 async function fetchCurrentWishlist(sourceUpdatedAt: string, shardCount: number) {
@@ -338,18 +302,6 @@ async function mapWithConcurrency<T, R>(
   );
 
   return results;
-}
-
-function trustedImageUrl(value: unknown) {
-  if (typeof value !== 'string') return null;
-  try {
-    const url = new URL(value);
-    return url.protocol === 'https:' && TRUSTED_IMAGE_HOSTS.has(url.hostname)
-      ? url.toString()
-      : null;
-  } catch {
-    return null;
-  }
 }
 
 function delay(milliseconds: number) {

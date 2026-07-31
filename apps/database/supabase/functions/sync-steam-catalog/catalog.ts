@@ -34,15 +34,22 @@ export type SteamCatalogRow = {
   tags: string[];
 };
 
+export type ExistingSteamCatalogRow = Pick<
+  SteamCatalogRow,
+  'steam_app_id' | 'image_url' | 'release_date' | 'release_label' | 'tags'
+>;
+
 const MAX_STEAM_APP_ID = 999_999_999_999;
 
 export function buildSteamCatalogRows({
   detailsByAppId,
+  existingByAppId = new Map(),
   ledger,
   now,
   sourceUpdatedAt,
 }: {
   detailsByAppId: Map<number, SteamAppDetails>;
+  existingByAppId?: Map<number, ExistingSteamCatalogRow>;
   ledger: Record<string, WishlistLedgerEntry>;
   now: string;
   sourceUpdatedAt: string;
@@ -57,15 +64,21 @@ export function buildSteamCatalogRows({
     const preReleaseRank = cleanRank(rawEntry?.preRelease?.rank);
     const estimate = cleanEstimate(rawEntry?.preRelease?.estimate);
     const details = detailsByAppId.get(appId);
+    const existing = existingByAppId.get(appId);
     const ledgerReleased = rawEntry?.state === 'released';
     const released = ledgerReleased || details?.released === true;
-    const releaseDate = cleanIsoDate(rawEntry?.releaseDate) ?? details?.releaseDate ?? null;
-    const releaseLabel = releaseDate ? formatReleaseLabel(releaseDate) : details?.releaseLabel ?? 'TBA';
+    const ledgerReleaseDate = ledgerReleased ? cleanIsoDate(rawEntry?.releaseDate) : null;
+    const releaseDate = details
+      ? details.releaseDate
+      : existing?.release_date ?? ledgerReleaseDate;
+    const releaseLabel = details
+      ? details.releaseLabel
+      : existing?.release_label ?? (releaseDate ? formatReleaseLabel(releaseDate) : 'TBA');
 
     rows.push({
       steam_app_id: appId,
       name,
-      image_url: details?.imageUrl ?? fallbackHeaderImage(appId),
+      image_url: details?.imageUrl ?? existing?.image_url ?? fallbackHeaderImage(appId),
       release_date: releaseDate,
       release_label: releaseLabel,
       lifecycle_status: released ? 'released' : 'upcoming',
@@ -77,7 +90,7 @@ export function buildSteamCatalogRows({
       source_updated_at: sourceUpdatedAt,
       last_seen_at: now,
       released_at: released ? releaseDate ? `${releaseDate}T00:00:00.000Z` : sourceUpdatedAt : null,
-      tags: details?.tags ?? [],
+      tags: details?.tags ?? existing?.tags ?? [],
     });
   }
 

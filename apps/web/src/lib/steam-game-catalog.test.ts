@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { toSteamUpcomingGame } from "./steam-game-catalog";
+import { getSteamGameHeroUrl } from "./steam-game-hero";
 
 describe("toSteamUpcomingGame", () => {
   it("maps a dated wishlist catalog row into a forecast card", () => {
@@ -20,7 +21,7 @@ describe("toSteamUpcomingGame", () => {
       releaseDate: "2027-03-15T00:00:00.000Z",
       releaseLabel: "March 15",
       wishlistRank: 12,
-      imageUrl: "/api/steam-artwork/388860",
+      imageUrl: getSteamGameHeroUrl(388860),
       tags: ["Action", "RPG"],
     });
     expect(game.targets).toHaveLength(3);
@@ -40,5 +41,19 @@ describe("toSteamUpcomingGame", () => {
 
     expect(game.releaseDate).toBe("TBA");
     expect(game.releaseLabel).toBe("TBA");
+  });
+
+  it("shows only the first five Steam genres", () => {
+    const game = toSteamUpcomingGame({
+      steam_app_id: 42,
+      name: "Genre Test",
+      image_url: "https://shared.fastly.steamstatic.com/store_item_assets/steam/apps/42/header.jpg",
+      release_date: null,
+      release_label: "TBA",
+      tags: ["Action", "RPG", "Indie", "Adventure", "Simulation", "Strategy"],
+      wishlist_rank: 1,
+    });
+
+    expect(game.tags).toEqual(["Action", "RPG", "Indie", "Adventure", "Simulation"]);
   });
 });

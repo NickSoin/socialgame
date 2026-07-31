@@ -1,5 +1,6 @@
 import { cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { afterEach, beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
+import { getSteamGameHeroUrl } from "@/lib/steam-game-hero";
 import { HeaderSearch, type HeaderSearchGame } from "./header-search";
 
 const mocks = vi.hoisted(() => ({ push: vi.fn() }));
@@ -67,7 +68,7 @@ describe("HeaderSearch", () => {
     expect(fetch).toHaveBeenCalledWith("/api/games/search?q=cors", expect.any(Object));
     expect(screen.getByLabelText("Top wishlisted rank 77").textContent).toBe("#77");
     expect(document.querySelector(".sb-game-hero.is-search img")?.getAttribute("src")).toBe(
-      "/api/steam-artwork/1",
+      getSteamGameHeroUrl(1),
     );
 
     fireEvent.click(screen.getByText("Corsair Cove"));

@@ -22,22 +22,25 @@ export function GameHero({
   appId,
   name,
   priority = false,
+  previewActive,
   wishlistRank,
   variant = "card",
 }: {
   appId: number;
   name: string;
   priority?: boolean;
+  previewActive?: boolean;
   wishlistRank: number | null;
   variant?: "card" | "search";
 }) {
   const artworkRef = useRef<HTMLImageElement>(null);
-  const [isPreviewing, setIsPreviewing] = useState(false);
-  const [previewIndex, setPreviewIndex] = useState(0);
+  const [isHovered, setIsHovered] = useState(false);
+  const [frameIndex, setFrameIndex] = useState(0);
   const imageUrl = getSteamGameHeroUrl(appId);
   const previews = variant === "card" ? getSteamHoverPreviews(appId) : [];
-  const previewUrl = previews[previewIndex];
-  const isShowingPreview = isPreviewing && Boolean(previewUrl);
+  const isPreviewing = previewActive ?? isHovered;
+  const frameUrl = frameIndex === 0 ? imageUrl : previews[frameIndex - 1];
+  const isShowingPreview = isPreviewing && frameIndex > 0 && Boolean(frameUrl);
 
   useEffect(() => {
     if (isShowingPreview) return;
@@ -56,10 +59,11 @@ export function GameHero({
   }, [appId, isShowingPreview]);
 
   useEffect(() => {
-    if (!isPreviewing || previews.length < 2) return;
+    setFrameIndex(0);
+    if (!isPreviewing || previews.length === 0) return;
 
     const interval = window.setInterval(() => {
-      setPreviewIndex((current) => (current + 1) % previews.length);
+      setFrameIndex((current) => (current + 1) % (previews.length + 1));
     }, 1000);
 
     return () => window.clearInterval(interval);
@@ -70,12 +74,11 @@ export function GameHero({
       className={`sb-game-hero is-${variant}${isShowingPreview ? " is-previewing" : ""}`}
       onMouseEnter={() => {
         if (!previews.length) return;
-        setPreviewIndex(0);
-        setIsPreviewing(true);
+        setIsHovered(true);
       }}
       onMouseLeave={() => {
-        setIsPreviewing(false);
-        setPreviewIndex(0);
+        setIsHovered(false);
+        setFrameIndex(0);
       }}
     >
       {/* eslint-disable-next-line @next/next/no-img-element */}
@@ -87,8 +90,7 @@ export function GameHero({
         loading={priority ? "eager" : "lazy"}
         onError={(event) => {
           if (isShowingPreview) {
-            setIsPreviewing(false);
-            setPreviewIndex(0);
+            setFrameIndex(0);
             return;
           }
           ensureGameHero(event.currentTarget, appId, true);
@@ -97,7 +99,7 @@ export function GameHero({
           if (!isShowingPreview) ensureGameHero(event.currentTarget, appId, true);
         }}
         ref={artworkRef}
-        src={isShowingPreview ? previewUrl : imageUrl}
+        src={isShowingPreview ? frameUrl : imageUrl}
         width={460}
       />
       {wishlistRank !== null && (

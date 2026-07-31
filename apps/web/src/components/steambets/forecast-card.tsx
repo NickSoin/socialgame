@@ -140,11 +140,25 @@ export function ForecastCard({
   isAuthenticated: boolean;
   priority?: boolean;
 }) {
+  const [previewActive, setPreviewActive] = useState(false);
+
   return (
-    <article className="sb-game-card">
+    <article
+      className="sb-game-card"
+      onMouseEnter={() => setPreviewActive(true)}
+      onMouseLeave={() => setPreviewActive(false)}
+    >
+      <a
+        aria-label={`Open ${game.name} on Steam`}
+        className="sb-game-card__steam-link"
+        href={`https://store.steampowered.com/app/${game.appId}/`}
+        rel="noreferrer"
+        target="_blank"
+      />
       <GameHero
         appId={game.appId}
         name={game.name}
+        previewActive={previewActive}
         priority={priority}
         wishlistRank={game.wishlistRank}
       />
@@ -152,22 +166,6 @@ export function ForecastCard({
         <header className="sb-game-card__header">
           <div className="sb-game-card__title">
             <div className="sb-game-card__name">
-              <a
-                aria-label={`Open ${game.name} on Steam`}
-                className="sb-steam-store-link"
-                href={`https://store.steampowered.com/app/${game.appId}/`}
-                rel="noreferrer"
-                target="_blank"
-                title="Open on Steam"
-              >
-                {/* eslint-disable-next-line @next/next/no-img-element */}
-                <img
-                  alt=""
-                  height="16"
-                  src="https://store.steampowered.com/favicon.ico"
-                  width="16"
-                />
-              </a>
               <h2>{game.name}</h2>
             </div>
             {game.tags.length > 0 && <p className="sb-game-card__tags">{game.tags.join(" · ")}</p>}

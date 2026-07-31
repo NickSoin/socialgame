@@ -86,3 +86,6 @@ verify_jwt = false
 
 [functions.sync-steam-popular]
 verify_jwt = false
+
+[functions.sync-steam-details]
+verify_jwt = false
