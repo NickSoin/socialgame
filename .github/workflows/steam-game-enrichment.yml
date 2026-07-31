@@ -21,6 +21,9 @@ jobs:
   enrich:
     runs-on: ubuntu-latest
     timeout-minutes: 25
+    strategy:
+      matrix:
+        node-version: [24.x]
     permissions:
       contents: read
     env:
