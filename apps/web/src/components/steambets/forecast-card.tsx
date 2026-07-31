@@ -191,7 +191,9 @@ export function ForecastCard({
         previewActive={previewActive}
         priority={priority}
         wishlistRank={game.wishlistRank}
+        wishlistRankUpdatedAt={game.wishlistRankUpdatedAt}
         followerCount={game.followerCount}
+        followersUpdatedAt={game.followersUpdatedAt}
       />
       <div className="sb-game-card__content">
         <header className="sb-game-card__header">

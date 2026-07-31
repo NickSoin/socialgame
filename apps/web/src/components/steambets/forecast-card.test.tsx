@@ -53,7 +53,7 @@ describe("ForecastCard", () => {
     expect(screen.getAllByText("200 Avg.")).toHaveLength(3);
     expect(screen.getAllByText("7M Vol.")).toHaveLength(3);
     expect(screen.getByText("August 1").getAttribute("dateTime")).toBe("2026-08-01");
-    expect(screen.getByLabelText("Top wishlisted rank 77").textContent).toBe("#77");
+    expect(screen.getByLabelText("Top wishlisted rank 77").textContent).toContain("#77");
     expect(screen.getByText("Action · RPG · Singleplayer")).toBeTruthy();
     expect(
       screen.getByRole("link", { name: "Open Input Limit Test on Steam" }).getAttribute("href"),

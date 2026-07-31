@@ -14,7 +14,7 @@ describe("GameHero hover previews", () => {
   it("cycles every frame across repeated hovers and restores the hero on mouse leave", () => {
     vi.useFakeTimers();
     const { container } = render(
-      <GameHero appId={1368140} followerCount={12345} imageUrl={imageUrl} name="Corsair Cove" previewUrls={previewUrls} wishlistRank={77} />,
+      <GameHero appId={1368140} followerCount={12345} followersUpdatedAt="2026-08-01T09:15:00.000Z" imageUrl={imageUrl} name="Corsair Cove" previewUrls={previewUrls} wishlistRank={77} wishlistRankUpdatedAt="2026-07-31T18:30:00.000Z" />,
     );
     const hero = container.querySelector(".sb-game-hero") as HTMLElement;
     const artwork = screen.getByRole("img", { name: "Corsair Cove artwork" });
@@ -22,6 +22,10 @@ describe("GameHero hover previews", () => {
 
     expect(artwork.getAttribute("src")).toBe(heroUrl);
     expect(screen.getByLabelText("12,345 Steam followers")).toBeTruthy();
+    expect(screen.getByText("Followers")).toBeTruthy();
+    expect(screen.getByText("Last updated Aug 1, 2026, 09:15 AM UTC")).toBeTruthy();
+    expect(screen.getByText("Position in Top Wishlisted")).toBeTruthy();
+    expect(screen.getByText("Last updated Jul 31, 2026, 06:30 PM UTC")).toBeTruthy();
 
     fireEvent.mouseEnter(hero);
     expect(artwork.getAttribute("src")).toBe(heroUrl);

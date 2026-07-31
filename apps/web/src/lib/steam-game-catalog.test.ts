@@ -14,7 +14,9 @@ describe("toSteamUpcomingGame", () => {
       lifecycle_status: "upcoming",
       pre_release_rank: 12,
       wishlist_rank: 12,
-      follower_count: 12345,
+      source_updated_at: "2026-08-01T08:00:00.000Z",
+      follower_count: 45_678,
+      followers_updated_at: "2026-08-01T09:00:00.000Z",
     });
 
     expect(game).toMatchObject({
@@ -23,6 +25,9 @@ describe("toSteamUpcomingGame", () => {
       releaseDate: "2027-03-15T00:00:00.000Z",
       releaseLabel: "March 15",
       wishlistRank: 12,
+      wishlistRankUpdatedAt: "2026-08-01T08:00:00.000Z",
+      followerCount: 45_678,
+      followersUpdatedAt: "2026-08-01T09:00:00.000Z",
       imageUrl: "https://shared.fastly.steamstatic.com/store_item_assets/steam/apps/388860/header.jpg",
       tags: ["Action", "RPG"],
     });

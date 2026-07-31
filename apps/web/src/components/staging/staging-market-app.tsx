@@ -423,7 +423,18 @@ function StagingGameCard({
     <div className="sb-staging-card-row">
       <article className="sb-game-card" onMouseEnter={() => setPreviewActive(true)} onMouseLeave={() => setPreviewActive(false)}>
         <a className="sb-game-card__steam-link" href={`https://store.steampowered.com/app/${game.appId}/`} target="_blank" rel="noreferrer" aria-label={`Open ${game.name} on Steam`} />
-        <GameHero appId={game.appId} imageUrl={game.imageUrl} name={game.name} previewUrls={game.previewUrls} previewActive={previewActive} priority={priority} wishlistRank={game.wishlistRank} />
+        <GameHero
+          appId={game.appId}
+          followerCount={game.followerCount}
+          followersUpdatedAt={game.followersUpdatedAt}
+          imageUrl={game.imageUrl}
+          name={game.name}
+          previewActive={previewActive}
+          previewUrls={game.previewUrls}
+          priority={priority}
+          wishlistRank={game.wishlistRank}
+          wishlistRankUpdatedAt={game.wishlistRankUpdatedAt}
+        />
         <div className="sb-game-card__content">
           <header className="sb-game-card__header">
             <div className="sb-game-card__title">

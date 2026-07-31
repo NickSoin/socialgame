@@ -5,6 +5,23 @@ import { Users } from "lucide-react";
 import { getSteamGameHeroUrl, STEAM_GAME_HERO_ASPECT_RATIO } from "@/lib/steam-game-hero";
 
 const NO_PREVIEWS: readonly string[] = [];
+const updatedAtFormatter = new Intl.DateTimeFormat("en-US", {
+  day: "numeric",
+  hour: "2-digit",
+  minute: "2-digit",
+  month: "short",
+  timeZone: "UTC",
+  timeZoneName: "short",
+  year: "numeric",
+});
+
+function formatUpdatedAt(value: string | null | undefined) {
+  if (!value) return "Update time unavailable";
+  const date = new Date(value);
+  return Number.isNaN(date.valueOf())
+    ? "Update time unavailable"
+    : `Last updated ${updatedAtFormatter.format(date)}`;
+}
 
 function needsGameHeroFallback(image: HTMLImageElement) {
   if (!image.naturalWidth || !image.naturalHeight) return true;
@@ -19,7 +36,9 @@ export function GameHero({
   priority = false,
   previewActive,
   wishlistRank,
+  wishlistRankUpdatedAt = null,
   followerCount = null,
+  followersUpdatedAt = null,
   variant = "card",
 }: {
   appId: number;
@@ -29,7 +48,9 @@ export function GameHero({
   priority?: boolean;
   previewActive?: boolean;
   wishlistRank: number | null;
+  wishlistRankUpdatedAt?: string | null;
   followerCount?: number | null;
+  followersUpdatedAt?: string | null;
   variant?: "card" | "search";
 }) {
   const [isHovered, setIsHovered] = useState(false);
@@ -124,14 +145,34 @@ export function GameHero({
       {(wishlistRank !== null || (variant === "card" && followerCount !== null)) && (
         <div className="sb-game-hero__metrics">
           {wishlistRank !== null && (
-            <span className="sb-game-hero__rank" aria-label={`Top wishlisted rank ${wishlistRank}`}>
+            <span
+              aria-describedby={variant === "card" ? `wishlist-rank-tooltip-${appId}` : undefined}
+              aria-label={`Top wishlisted rank ${wishlistRank}`}
+              className="sb-game-hero__rank"
+              tabIndex={variant === "card" ? 0 : undefined}
+            >
               #{wishlistRank}
+              {variant === "card" && (
+                <span className="sb-game-hero__metric-tooltip" id={`wishlist-rank-tooltip-${appId}`} role="tooltip">
+                  <strong>Position in Top Wishlisted</strong>
+                  <small>{formatUpdatedAt(wishlistRankUpdatedAt)}</small>
+                </span>
+              )}
             </span>
           )}
           {variant === "card" && followerCount !== null && (
-            <span className="sb-game-hero__followers" aria-label={`${followerCount.toLocaleString("en-US")} Steam followers`}>
+            <span
+              aria-describedby={`followers-tooltip-${appId}`}
+              aria-label={`${followerCount.toLocaleString("en-US")} Steam followers`}
+              className="sb-game-hero__followers"
+              tabIndex={0}
+            >
               <Users aria-hidden="true" size={13} strokeWidth={2.2} />
               {followerCount.toLocaleString("en-US")}
+              <span className="sb-game-hero__metric-tooltip" id={`followers-tooltip-${appId}`} role="tooltip">
+                <strong>Followers</strong>
+                <small>{formatUpdatedAt(followersUpdatedAt)}</small>
+              </span>
             </span>
           )}
         </div>

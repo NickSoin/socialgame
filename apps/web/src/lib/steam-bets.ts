@@ -35,7 +35,9 @@ export type SteamUpcomingGame = {
   previewUrls?: string[];
   tags: string[];
   wishlistRank: number | null;
+  wishlistRankUpdatedAt?: string | null;
   followerCount?: number | null;
+  followersUpdatedAt?: string | null;
   targets: SteamBetTarget[];
 };
 
