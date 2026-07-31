@@ -1568,7 +1568,8 @@ AS $$
 DECLARE
   rebuilt_count integer;
 BEGIN
-  DELETE FROM public.steam_user_leaderboard_stats;
+  DELETE FROM public.steam_user_leaderboard_stats
+  WHERE user_id IS NOT NULL;
 
   WITH current_entries AS (
     SELECT entry.*, market.metric_type, snapshot.snapshot_date
