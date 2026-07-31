@@ -452,6 +452,32 @@ button:disabled {
   display: grid;
   gap: 14px;
 }
+.sb-feed-loader {
+  display: flex;
+  min-height: 1px;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+  color: var(--muted-foreground);
+  font-size: var(--font-secondary);
+}
+.sb-feed-loader.is-loading {
+  min-height: 72px;
+}
+.sb-feed-loader__spinner {
+  width: 22px;
+  height: 22px;
+  border: 2px solid #d6def5;
+  border-top-color: var(--accent);
+  border-radius: 999px;
+  animation: sb-feed-spin 0.75s linear infinite;
+}
+@keyframes sb-feed-spin {
+  to { transform: rotate(360deg); }
+}
+@media (prefers-reduced-motion: reduce) {
+  .sb-feed-loader__spinner { animation-duration: 1.5s; }
+}
 .sb-game-card {
   position: relative;
   display: grid;
