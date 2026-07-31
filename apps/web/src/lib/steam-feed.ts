@@ -6,7 +6,7 @@ import {
   type SteamPredictionState,
 } from "./steam-bets";
 
-export type SteamFeedMode = "upcoming" | "trending" | "involved";
+export type SteamFeedMode = "upcoming" | "trending" | "completed" | "involved";
 
 export function buildSteamFeed({
   mode,
@@ -36,6 +36,12 @@ export function buildSteamFeed({
   );
 
   let result = [...liveGames];
+  if (mode === "upcoming" || mode === "trending") {
+    result = result.filter((game) => game.lifecycleStatus === "upcoming");
+  }
+  if (mode === "completed") {
+    result = result.filter((game) => game.lifecycleStatus === "released");
+  }
   if (mode === "involved") result = result.filter((game) => involvedIds.has(game.appId));
   if (mode === "trending") {
     result.sort((a, b) => (trendCounts.get(b.appId) ?? 0) - (trendCounts.get(a.appId) ?? 0));

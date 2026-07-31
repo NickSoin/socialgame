@@ -28,9 +28,11 @@ export type SteamBetTarget = {
 export type SteamUpcomingGame = {
   appId: number;
   name: string;
+  lifecycleStatus: "upcoming" | "released";
   releaseDate: string;
   releaseLabel: string;
   imageUrl: string;
+  previewUrls?: string[];
   tags: string[];
   wishlistRank: number | null;
   targets: SteamBetTarget[];

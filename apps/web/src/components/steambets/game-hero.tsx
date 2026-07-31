@@ -1,84 +1,93 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { getSteamGameHeroUrl, STEAM_GAME_HERO_ASPECT_RATIO } from "@/lib/steam-game-hero";
-import { getSteamHoverPreviews } from "@/lib/steam-hover-previews";
 
-function ensureGameHero(image: HTMLImageElement, appId: number, loadEventReceived = false) {
-  if (!loadEventReceived && !image.complete) return;
+const NO_PREVIEWS: readonly string[] = [];
 
-  const expectedUrl = getSteamGameHeroUrl(appId);
-  const loadedAspectRatio = image.naturalWidth / image.naturalHeight;
-  const isMissing = !image.naturalWidth || !image.naturalHeight;
-  const isLegacyCapsule =
-    !isMissing && Math.abs(loadedAspectRatio - STEAM_GAME_HERO_ASPECT_RATIO) > 0.03;
-
-  if ((isMissing || isLegacyCapsule) && image.getAttribute("src") !== expectedUrl) {
-    image.setAttribute("src", expectedUrl);
-  }
+function needsGameHeroFallback(image: HTMLImageElement) {
+  if (!image.naturalWidth || !image.naturalHeight) return true;
+  return Math.abs(image.naturalWidth / image.naturalHeight - STEAM_GAME_HERO_ASPECT_RATIO) > 0.03;
 }
 
 export function GameHero({
   appId,
+  imageUrl,
   name,
+  previewUrls = NO_PREVIEWS,
   priority = false,
   previewActive,
   wishlistRank,
   variant = "card",
 }: {
   appId: number;
+  imageUrl: string;
   name: string;
+  previewUrls?: readonly string[];
   priority?: boolean;
   previewActive?: boolean;
   wishlistRank: number | null;
   variant?: "card" | "search";
 }) {
-  const artworkRef = useRef<HTMLImageElement>(null);
   const [isHovered, setIsHovered] = useState(false);
   const [frameIndex, setFrameIndex] = useState(0);
-  const imageUrl = getSteamGameHeroUrl(appId);
-  const previews = variant === "card" ? getSteamHoverPreviews(appId) : [];
+  const [failedPreviews, setFailedPreviews] = useState<readonly string[]>([]);
+  const [heroUrl, setHeroUrl] = useState(imageUrl);
+  const artworkRef = useRef<HTMLImageElement>(null);
+  const previews = useMemo(
+    () => variant === "card" ? previewUrls.filter(Boolean).slice(0, 2) : [],
+    [previewUrls, variant],
+  );
+  const availablePreviews = previews.filter((preview) => !failedPreviews.includes(preview));
   const isPreviewing = previewActive ?? isHovered;
-  const frameUrl = frameIndex === 0 ? imageUrl : previews[frameIndex - 1];
+  const frameUrl = frameIndex === 0 ? heroUrl : availablePreviews[frameIndex - 1];
   const isShowingPreview = isPreviewing && frameIndex > 0 && Boolean(frameUrl);
 
   useEffect(() => {
-    if (isShowingPreview) return;
+    setFailedPreviews([]);
+    setFrameIndex(0);
+    setHeroUrl(imageUrl);
+  }, [appId, imageUrl, previews]);
 
+  useEffect(() => {
+    for (const preview of previews) {
+      const image = new Image();
+      image.decoding = "async";
+      image.src = preview;
+    }
+  }, [previews]);
+
+  useEffect(() => {
     const image = artworkRef.current;
-    if (!image) return;
-
-    const checkArtwork = () => ensureGameHero(image, appId);
-    checkArtwork();
-    image.addEventListener("load", checkArtwork);
-    image.addEventListener("error", checkArtwork);
-    return () => {
-      image.removeEventListener("load", checkArtwork);
-      image.removeEventListener("error", checkArtwork);
-    };
+    if (!isShowingPreview && image?.complete && needsGameHeroFallback(image)) {
+      setHeroUrl(getSteamGameHeroUrl(appId));
+    }
   }, [appId, isShowingPreview]);
 
   useEffect(() => {
     setFrameIndex(0);
-    if (!isPreviewing || previews.length === 0) return;
+  }, [isPreviewing]);
+
+  useEffect(() => {
+    if (!isPreviewing || availablePreviews.length === 0) return;
 
     const interval = window.setInterval(() => {
-      setFrameIndex((current) => (current + 1) % (previews.length + 1));
+      setFrameIndex((current) => (current + 1) % (availablePreviews.length + 1));
     }, 1000);
 
     return () => window.clearInterval(interval);
-  }, [isPreviewing, previews.length]);
+  }, [availablePreviews.length, isPreviewing]);
 
   return (
     <div
       className={`sb-game-hero is-${variant}${isShowingPreview ? " is-previewing" : ""}`}
       onMouseEnter={() => {
-        if (!previews.length) return;
+        if (previewActive !== undefined || !availablePreviews.length) return;
         setIsHovered(true);
       }}
       onMouseLeave={() => {
+        if (previewActive !== undefined) return;
         setIsHovered(false);
-        setFrameIndex(0);
       }}
     >
       {/* eslint-disable-next-line @next/next/no-img-element */}
@@ -88,18 +97,25 @@ export function GameHero({
         fetchPriority={priority ? "high" : "auto"}
         height={215}
         loading={priority ? "eager" : "lazy"}
-        onError={(event) => {
-          if (isShowingPreview) {
-            setFrameIndex(0);
+        onError={() => {
+          if (isShowingPreview && frameUrl) {
+            setFailedPreviews((current) => (
+              current.includes(frameUrl) ? current : [...current, frameUrl]
+            ));
+            setFrameIndex((current) => current > availablePreviews.length - 1 ? 0 : current);
             return;
           }
-          ensureGameHero(event.currentTarget, appId, true);
+          const fallback = getSteamGameHeroUrl(appId);
+          if (heroUrl !== fallback) setHeroUrl(fallback);
         }}
         onLoad={(event) => {
-          if (!isShowingPreview) ensureGameHero(event.currentTarget, appId, true);
+          if (!isShowingPreview && needsGameHeroFallback(event.currentTarget)) {
+            setHeroUrl(getSteamGameHeroUrl(appId));
+          }
         }}
         ref={artworkRef}
-        src={isShowingPreview ? frameUrl : imageUrl}
+        data-preview-frame={isShowingPreview ? frameIndex : 0}
+        src={isShowingPreview ? frameUrl : heroUrl}
         width={460}
       />
       {wishlistRank !== null && (

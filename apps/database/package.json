@@ -8,9 +8,12 @@
     "status": "supabase status",
     "gen-types": "supabase gen types typescript --linked --schema public > ../web/src/lib/database.types.ts",
     "gen-types-local": "supabase gen types typescript --local > ../web/src/lib/database.types.ts",
-    "test-db": "supabase test db"
+    "test-db": "supabase test db",
+    "steam:backfill": "node scripts/backfill-steam-game-data.mjs"
   },
   "dependencies": {
+    "@supabase/supabase-js": "2.105.4",
+    "sharp": "0.34.5",
     "supabase": "^2.98.2"
   },
   "devDependencies": {

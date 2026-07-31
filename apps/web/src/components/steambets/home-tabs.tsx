@@ -1,7 +1,7 @@
 'use client';
 
 import Link from 'next/link';
-import { CalendarDays, CircleDot, TrendingUp } from 'lucide-react';
+import { CalendarDays, CircleCheckBig, CircleDot, TrendingUp } from 'lucide-react';
 import { usePathname } from 'next/navigation';
 
 export function HomeTabs() {
@@ -9,6 +9,7 @@ export function HomeTabs() {
   const links = [
     { href: '/trending', label: 'Trending', icon: TrendingUp },
     { href: '/', label: 'Popular upcoming', icon: CalendarDays },
+    { href: '/completed', label: 'Completed', icon: CircleCheckBig },
     { href: '/involved', label: 'My forecasts', icon: CircleDot },
   ];
 

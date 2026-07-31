@@ -1,5 +1,5 @@
 import { STEAM_BET_TARGETS, type SteamUpcomingGame } from "./steam-bets";
-import { getSteamGameHeroUrl } from "./steam-game-hero";
+import { getSteamHoverPreviews, type SteamHoverPreviewRecord } from "./steam-hover-previews";
 
 export type SteamGameCatalogRecord = {
   steam_app_id: number;
@@ -8,18 +8,23 @@ export type SteamGameCatalogRecord = {
   release_date: string | null;
   release_label: string;
   tags: string[];
+  lifecycle_status: string;
+  pre_release_rank: number | null;
   wishlist_rank: number | null;
+  steam_game_media?: SteamHoverPreviewRecord[] | null;
 };
 
 export function toSteamUpcomingGame(row: SteamGameCatalogRecord): SteamUpcomingGame {
   return {
     appId: Number(row.steam_app_id),
     name: row.name,
-    imageUrl: getSteamGameHeroUrl(Number(row.steam_app_id)),
+    lifecycleStatus: row.lifecycle_status === "released" ? "released" : "upcoming",
+    imageUrl: row.image_url,
+    previewUrls: getSteamHoverPreviews(row.steam_game_media),
     releaseDate: row.release_date ? `${row.release_date}T00:00:00.000Z` : "TBA",
     releaseLabel: row.release_label || "TBA",
     tags: row.tags.filter((tag) => tag.trim()).slice(0, 5),
-    wishlistRank: row.wishlist_rank,
+    wishlistRank: row.wishlist_rank ?? row.pre_release_rank,
     targets: STEAM_BET_TARGETS.map((target) => ({
       ...target,
       averageValue: null,

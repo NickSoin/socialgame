@@ -1032,7 +1032,8 @@ INSERT INTO public.steam_games (
   source_updated_at,
   is_popular_upcoming,
   popular_upcoming_position,
-  steam_data_updated_at
+  steam_data_updated_at,
+  released_at
 )
 VALUES
   (
@@ -1048,7 +1049,8 @@ VALUES
     now(),
     true,
     15,
-    now()
+    now(),
+    NULL
   ),
   (
     9990001,
@@ -1063,6 +1065,23 @@ VALUES
     now(),
     false,
     NULL,
+    now(),
+    NULL
+  ),
+  (
+    9990002,
+    'Completed Wishlist Game',
+    'https://shared.fastly.steamstatic.com/store_item_assets/steam/apps/9990002/header.jpg',
+    '2026-07-31',
+    'July 31',
+    'released',
+    NULL,
+    100,
+    false,
+    now(),
+    false,
+    NULL,
+    now(),
     now()
   )
 ON CONFLICT (steam_app_id) DO UPDATE
@@ -1078,7 +1097,8 @@ SET
   source_updated_at = EXCLUDED.source_updated_at,
   is_popular_upcoming = EXCLUDED.is_popular_upcoming,
   popular_upcoming_position = EXCLUDED.popular_upcoming_position,
-  steam_data_updated_at = EXCLUDED.steam_data_updated_at;
+  steam_data_updated_at = EXCLUDED.steam_data_updated_at,
+  released_at = EXCLUDED.released_at;
 
 INSERT INTO public.steam_bets (
   user_id,
@@ -1090,16 +1110,27 @@ INSERT INTO public.steam_bets (
   release_label,
   image_url
 )
-VALUES (
-  '91111111-1111-4111-8111-111111111111',
-  9990001,
-  'first_month_reviews',
-  10,
-  'Removed Wishlist Game',
-  '2030-01-01',
-  'January 1',
-  'https://shared.fastly.steamstatic.com/store_item_assets/steam/apps/9990001/header.jpg'
-);
+VALUES
+  (
+    '91111111-1111-4111-8111-111111111111',
+    9990001,
+    'first_month_reviews',
+    10,
+    'Removed Wishlist Game',
+    '2030-01-01',
+    'January 1',
+    'https://shared.fastly.steamstatic.com/store_item_assets/steam/apps/9990001/header.jpg'
+  ),
+  (
+    '91111111-1111-4111-8111-111111111111',
+    9990002,
+    'first_month_reviews',
+    20,
+    'Completed Wishlist Game',
+    '2026-07-31',
+    'July 31',
+    'https://shared.fastly.steamstatic.com/store_item_assets/steam/apps/9990002/header.jpg'
+  );
 
 SET LOCAL ROLE authenticated;
 SELECT tests.set_user_context('91111111-1111-4111-8111-111111111111');
@@ -1463,6 +1494,15 @@ SELECT is(
   ),
   0,
   'trending excludes bets for games outside TopWishlisted'
+);
+SELECT is(
+  (
+    SELECT count(*)::integer
+    FROM public.get_steam_bet_trends()
+    WHERE steam_app_id = 9990002
+  ),
+  0,
+  'trending excludes completed games after release'
 );
 RESET ROLE;
 SELECT tests.clear_user_context();

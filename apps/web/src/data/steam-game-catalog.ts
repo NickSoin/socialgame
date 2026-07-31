@@ -5,7 +5,7 @@ import type { SteamUpcomingGame } from "@/lib/steam-bets";
 import { toSteamUpcomingGame } from "@/lib/steam-game-catalog";
 
 const CATALOG_FIELDS =
-  "steam_app_id,name,image_url,release_date,release_label,tags,wishlist_rank" as const;
+  "steam_app_id,name,image_url,release_date,release_label,release_precision,tags,lifecycle_status,wishlist_rank,pre_release_rank,steam_game_media(kind,position,storage_bucket,storage_path,active)" as const;
 
 export type SteamCatalogPage = {
   games: SteamUpcomingGame[];
@@ -68,6 +68,36 @@ export async function getSteamPopularUpcomingGames(
   if (error) {
     console.error("Could not load the stored Steam popular upcoming catalog.", error);
     return null;
+  }
+
+  const games = (data ?? []).map(toSteamUpcomingGame);
+  return { games, total: count ?? games.length };
+}
+
+export async function getSteamCompletedGamesPage(
+  query = "",
+  options: SteamCatalogPageOptions = {},
+): Promise<SteamCatalogPage> {
+  const normalizedQuery = query.trim().slice(0, 80);
+  const escapedQuery = normalizedQuery.replace(/[\\%_]/g, "\\$&");
+  const { from, to } = getPageRange(options);
+  const supabase = createPublicCatalogClient();
+  let request = supabase
+    .from("steam_games")
+    .select(CATALOG_FIELDS, { count: "exact" })
+    .eq("lifecycle_status", "released");
+
+  if (escapedQuery) request = request.ilike("name", `%${escapedQuery}%`);
+
+  const { data, error, count } = await request
+    .order("released_at", { ascending: false, nullsFirst: false })
+    .order("release_date", { ascending: false, nullsFirst: false })
+    .order("pre_release_rank", { ascending: true, nullsFirst: false })
+    .range(from, to);
+
+  if (error) {
+    console.error("Could not load completed Steam games.", error);
+    return { games: [], total: 0 };
   }
 
   const games = (data ?? []).map(toSteamUpcomingGame);

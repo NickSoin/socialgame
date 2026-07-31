@@ -6,6 +6,7 @@ import {
   getSteamPredictionStates,
 } from "@/data/steam-bets";
 import {
+  getSteamCompletedGamesPage,
   getSteamCatalogGamesByIds,
   searchSteamCatalogGamesPage,
 } from "@/data/steam-game-catalog";
@@ -38,7 +39,12 @@ export async function getSteamFeedPageData({
           offset,
         })
       : getSteamPopularUpcoming({ limit: STEAM_FEED_PAGE_SIZE, offset })
-    : Promise.resolve(null);
+    : mode === "completed"
+      ? getSteamCompletedGamesPage(searchQuery, {
+          limit: STEAM_FEED_PAGE_SIZE,
+          offset,
+        })
+      : Promise.resolve(null);
 
   const [userState, summaries, trends, catalogPage] = await Promise.all([
     getCurrentUserSteamBets(),
@@ -84,7 +90,7 @@ export async function getSteamFeedPageData({
     : feed;
   const totalGames = catalogPage?.total ?? filteredGames.length;
   const pageCount = getSteamFeedPageCount(totalGames);
-  const games = mode === "upcoming"
+  const games = mode === "upcoming" || mode === "completed"
     ? filteredGames
     : paginateSteamFeed(filteredGames, safePage);
 

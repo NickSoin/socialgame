@@ -5,6 +5,7 @@ import {
   type ExistingSteamCatalogRow,
   type WishlistLedgerEntry,
 } from './catalog.ts';
+import { authorizeScheduledRequest } from '../_shared/scheduled-auth.ts';
 
 const SOURCE_META_URL =
   'https://nicksoin.github.io/SteamTopWishlistsRank/v2/meta.json';
@@ -39,6 +40,8 @@ Deno.serve(async (request) => {
   if (request.method !== 'POST') {
     return Response.json({ error: 'Method not allowed' }, { status: 405 });
   }
+  const unauthorized = authorizeScheduledRequest(request);
+  if (unauthorized) return unauthorized;
 
   const supabaseUrl = Deno.env.get('SUPABASE_URL');
   const serviceRoleKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY');
@@ -139,6 +142,26 @@ Deno.serve(async (request) => {
       const { error } = await supabase
         .from('steam_games')
         .upsert(rows.slice(offset, offset + UPSERT_BATCH_SIZE), { onConflict: 'steam_app_id' });
+      if (error) throw error;
+    }
+
+    const activeAppIds = rows
+      .filter((row) => row.lifecycle_status === 'upcoming' && row.is_wishlisted)
+      .map((row) => row.steam_app_id);
+    const initialStates = activeAppIds.flatMap((steamAppId) =>
+      (['release', 'tags', 'media'] as const).map((component) => ({
+        steam_app_id: steamAppId,
+        component,
+        status: 'pending',
+      }))
+    );
+    for (let offset = 0; offset < initialStates.length; offset += UPSERT_BATCH_SIZE) {
+      const { error } = await supabase
+        .from('steam_game_enrichment_state')
+        .upsert(initialStates.slice(offset, offset + UPSERT_BATCH_SIZE), {
+          onConflict: 'steam_app_id,component',
+          ignoreDuplicates: true,
+        });
       if (error) throw error;
     }
 

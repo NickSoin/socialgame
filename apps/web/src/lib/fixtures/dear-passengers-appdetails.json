@@ -1,0 +1,23 @@
+{
+  "4534960": {
+    "success": true,
+    "data": {
+      "name": "Dear Passengers",
+      "header_image": "https://shared.akamai.steamstatic.com/store_item_assets/steam/apps/4534960/example/header.jpg",
+      "release_date": {
+        "coming_soon": true,
+        "date": "2026"
+      },
+      "screenshots": [
+        {
+          "id": 0,
+          "path_full": "https://shared.akamai.steamstatic.com/store_item_assets/steam/apps/4534960/one/ss_one.1920x1080.jpg"
+        },
+        {
+          "id": 1,
+          "path_full": "https://shared.akamai.steamstatic.com/store_item_assets/steam/apps/4534960/two/ss_two.1920x1080.jpg"
+        }
+      ]
+    }
+  }
+}

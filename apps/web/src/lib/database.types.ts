@@ -449,6 +449,60 @@ export type Database = {
         }
         Relationships: []
       }
+      steam_enrichment_runs: {
+        Row: {
+          error_message: string | null
+          failed_count: number
+          finished_at: string | null
+          id: string
+          partial_count: number
+          released_count: number
+          selected_count: number
+          skipped_unchanged_count: number
+          started_at: string
+          status: string
+          still_pending_count: number
+          succeeded_count: number
+          unavailable_count: number
+          uploaded_count: number
+          worker_id: string
+        }
+        Insert: {
+          error_message?: string | null
+          failed_count?: number
+          finished_at?: string | null
+          id?: string
+          partial_count?: number
+          released_count?: number
+          selected_count?: number
+          skipped_unchanged_count?: number
+          started_at?: string
+          status?: string
+          still_pending_count?: number
+          succeeded_count?: number
+          unavailable_count?: number
+          uploaded_count?: number
+          worker_id: string
+        }
+        Update: {
+          error_message?: string | null
+          failed_count?: number
+          finished_at?: string | null
+          id?: string
+          partial_count?: number
+          released_count?: number
+          selected_count?: number
+          skipped_unchanged_count?: number
+          started_at?: string
+          status?: string
+          still_pending_count?: number
+          succeeded_count?: number
+          unavailable_count?: number
+          uploaded_count?: number
+          worker_id?: string
+        }
+        Relationships: []
+      }
       steam_forecast_markets: {
         Row: {
           created_at: string
@@ -515,6 +569,183 @@ export type Database = {
           },
         ]
       }
+      steam_game_enrichment_state: {
+        Row: {
+          component: string
+          consecutive_failures: number
+          error_code: string | null
+          error_message: string | null
+          last_attempt_at: string | null
+          last_success_at: string | null
+          lease_expires_at: string | null
+          lease_owner: string | null
+          retry_after: string | null
+          source_fingerprint: string | null
+          source_payload: Json
+          status: string
+          steam_app_id: number
+          updated_at: string
+        }
+        Insert: {
+          component: string
+          consecutive_failures?: number
+          error_code?: string | null
+          error_message?: string | null
+          last_attempt_at?: string | null
+          last_success_at?: string | null
+          lease_expires_at?: string | null
+          lease_owner?: string | null
+          retry_after?: string | null
+          source_fingerprint?: string | null
+          source_payload?: Json
+          status?: string
+          steam_app_id: number
+          updated_at?: string
+        }
+        Update: {
+          component?: string
+          consecutive_failures?: number
+          error_code?: string | null
+          error_message?: string | null
+          last_attempt_at?: string | null
+          last_success_at?: string | null
+          lease_expires_at?: string | null
+          lease_owner?: string | null
+          retry_after?: string | null
+          source_fingerprint?: string | null
+          source_payload?: Json
+          status?: string
+          steam_app_id?: number
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "steam_game_enrichment_state_steam_app_id_fkey"
+            columns: ["steam_app_id"]
+            isOneToOne: false
+            referencedRelation: "steam_games"
+            referencedColumns: ["steam_app_id"]
+          },
+        ]
+      }
+      steam_game_media: {
+        Row: {
+          active: boolean
+          byte_size: number
+          checksum_sha256: string
+          created_at: string
+          encoder_quality: number
+          height: number
+          id: string
+          kind: string
+          mime_type: string
+          original_source_url: string
+          position: number
+          processed_at: string
+          source_updated_at: string | null
+          steam_app_id: number
+          storage_bucket: string
+          storage_path: string
+          width: number
+        }
+        Insert: {
+          active?: boolean
+          byte_size: number
+          checksum_sha256: string
+          created_at?: string
+          encoder_quality: number
+          height: number
+          id?: string
+          kind: string
+          mime_type: string
+          original_source_url: string
+          position: number
+          processed_at?: string
+          source_updated_at?: string | null
+          steam_app_id: number
+          storage_bucket: string
+          storage_path: string
+          width: number
+        }
+        Update: {
+          active?: boolean
+          byte_size?: number
+          checksum_sha256?: string
+          created_at?: string
+          encoder_quality?: number
+          height?: number
+          id?: string
+          kind?: string
+          mime_type?: string
+          original_source_url?: string
+          position?: number
+          processed_at?: string
+          source_updated_at?: string | null
+          steam_app_id?: number
+          storage_bucket?: string
+          storage_path?: string
+          width?: number
+        }
+        Relationships: [
+          {
+            foreignKeyName: "steam_game_media_steam_app_id_fkey"
+            columns: ["steam_app_id"]
+            isOneToOne: false
+            referencedRelation: "steam_games"
+            referencedColumns: ["steam_app_id"]
+          },
+        ]
+      }
+      steam_game_release_transitions: {
+        Row: {
+          id: string
+          next_coming_soon: boolean | null
+          next_precision: string
+          next_release_date: string | null
+          next_release_text: string | null
+          observed_at: string
+          previous_coming_soon: boolean | null
+          previous_precision: string
+          previous_release_date: string | null
+          previous_release_text: string | null
+          steam_app_id: number
+        }
+        Insert: {
+          id?: string
+          next_coming_soon?: boolean | null
+          next_precision: string
+          next_release_date?: string | null
+          next_release_text?: string | null
+          observed_at?: string
+          previous_coming_soon?: boolean | null
+          previous_precision: string
+          previous_release_date?: string | null
+          previous_release_text?: string | null
+          steam_app_id: number
+        }
+        Update: {
+          id?: string
+          next_coming_soon?: boolean | null
+          next_precision?: string
+          next_release_date?: string | null
+          next_release_text?: string | null
+          observed_at?: string
+          previous_coming_soon?: boolean | null
+          previous_precision?: string
+          previous_release_date?: string | null
+          previous_release_text?: string | null
+          steam_app_id?: number
+        }
+        Relationships: [
+          {
+            foreignKeyName: "steam_game_release_transitions_steam_app_id_fkey"
+            columns: ["steam_app_id"]
+            isOneToOne: false
+            referencedRelation: "steam_games"
+            referencedColumns: ["steam_app_id"]
+          },
+        ]
+      }
       steam_games: {
         Row: {
           first_seen_at: string
@@ -523,18 +754,25 @@ export type Database = {
           is_wishlisted: boolean
           last_seen_at: string
           lifecycle_status: string
+          media_updated_at: string | null
           name: string
           popular_upcoming_position: number | null
           pre_release_rank: number | null
           release_date: string | null
           release_label: string
+          release_metadata_updated_at: string | null
+          release_precision: string
+          release_text: string | null
           released_at: string | null
           source: string
           source_updated_at: string
           steam_app_id: number
+          steam_coming_soon: boolean | null
           steam_data_attempted_at: string | null
           steam_data_updated_at: string | null
+          tag_source: string
           tags: string[]
+          tags_updated_at: string | null
           updated_at: string
           wishlist_estimate: string | null
           wishlist_rank: number | null
@@ -546,18 +784,25 @@ export type Database = {
           is_wishlisted?: boolean
           last_seen_at?: string
           lifecycle_status?: string
+          media_updated_at?: string | null
           name: string
           popular_upcoming_position?: number | null
           pre_release_rank?: number | null
           release_date?: string | null
           release_label?: string
+          release_metadata_updated_at?: string | null
+          release_precision?: string
+          release_text?: string | null
           released_at?: string | null
           source?: string
           source_updated_at: string
           steam_app_id: number
+          steam_coming_soon?: boolean | null
           steam_data_attempted_at?: string | null
           steam_data_updated_at?: string | null
+          tag_source?: string
           tags?: string[]
+          tags_updated_at?: string | null
           updated_at?: string
           wishlist_estimate?: string | null
           wishlist_rank?: number | null
@@ -569,18 +814,25 @@ export type Database = {
           is_wishlisted?: boolean
           last_seen_at?: string
           lifecycle_status?: string
+          media_updated_at?: string | null
           name?: string
           popular_upcoming_position?: number | null
           pre_release_rank?: number | null
           release_date?: string | null
           release_label?: string
+          release_metadata_updated_at?: string | null
+          release_precision?: string
+          release_text?: string | null
           released_at?: string | null
           source?: string
           source_updated_at?: string
           steam_app_id?: number
+          steam_coming_soon?: boolean | null
           steam_data_attempted_at?: string | null
           steam_data_updated_at?: string | null
+          tag_source?: string
           tags?: string[]
+          tags_updated_at?: string | null
           updated_at?: string
           wishlist_estimate?: string | null
           wishlist_rank?: number | null
@@ -1055,6 +1307,20 @@ export type Database = {
       }
     }
     Functions: {
+      claim_steam_media_jobs: {
+        Args: {
+          p_app_id?: number
+          p_lease_seconds?: number
+          p_limit: number
+          p_worker_id: string
+        }
+        Returns: {
+          consecutive_failures: number
+          source_fingerprint: string
+          source_payload: Json
+          steam_app_id: number
+        }[]
+      }
       create_steam_market_snapshots: {
         Args: { p_snapshot_at?: string }
         Returns: number
@@ -1099,6 +1365,29 @@ export type Database = {
           release_date: string
           release_label: string
           steam_app_id: number
+        }[]
+      }
+      get_steam_game_data_quality_report: {
+        Args: never
+        Returns: {
+          exact_release_count: number
+          fallback_tags_count: number
+          five_tags_count: number
+          media_failed_count: number
+          media_pending_count: number
+          media_unavailable_count: number
+          missing_tags_count: number
+          most_recent_successful_run_at: string
+          oldest_pending_at: string
+          one_screenshot_count: number
+          one_to_four_tags_count: number
+          partial_release_count: number
+          stale_media_count: number
+          stale_release_count: number
+          stale_tag_count: number
+          tba_release_count: number
+          total_games: number
+          two_screenshots_count: number
         }[]
       }
       get_steam_points_leaderboard: {
@@ -1169,6 +1458,25 @@ export type Database = {
         }
       }
       process_steam_market_cycle: { Args: never; Returns: Json }
+      publish_steam_game_media: {
+        Args: {
+          p_byte_size: number
+          p_checksum_sha256: string
+          p_encoder_quality: number
+          p_height: number
+          p_original_source_url: string
+          p_position: number
+          p_source_updated_at?: string
+          p_steam_app_id: number
+          p_storage_bucket: string
+          p_storage_path: string
+          p_width: number
+        }
+        Returns: {
+          previous_storage_bucket: string
+          previous_storage_path: string
+        }[]
+      }
       rebuild_steam_leaderboard_stats: { Args: never; Returns: number }
       recalculate_steam_forecast_market: {
         Args: { p_market_id: string; p_reason?: string }

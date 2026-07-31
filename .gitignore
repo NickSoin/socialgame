@@ -37,6 +37,7 @@ playwright/.auth/
 # local runtime logs
 .steam-bets-server.*.log
 .steambets-sites.*.log
+/steamdb-all-time-peaks/
 
 # Supabase CLI link state
 **/supabase/.temp/

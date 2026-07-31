@@ -21,11 +21,13 @@ function formatAverage(value: number | null) {
 
 function ForecastField({
   appId,
+  gameIsOpen,
   gameName,
   target,
   isAuthenticated,
 }: {
   appId: number;
+  gameIsOpen: boolean;
   gameName: string;
   target: SteamBetTarget;
   isAuthenticated: boolean;
@@ -60,7 +62,7 @@ function ForecastField({
 
   const value = parseSteamBetDraft(target.key, draft);
   const isValid = value !== null;
-  const canEdit = target.marketStatus === "open";
+  const canEdit = gameIsOpen && target.marketStatus === "open";
   const hasSavedValue = savedDraft !== "";
 
   return (
@@ -117,6 +119,9 @@ function ForecastField({
         </p>
       )}
       {target.marketStatus === "void" && <p className="sb-forecast-result">Void</p>}
+      {!gameIsOpen && target.marketStatus === "open" && (
+        <p className="sb-forecast-result">Closed</p>
+      )}
       {mode === "editing" && (
         <div className="sb-bet-actions">
           <button
@@ -180,7 +185,9 @@ export function ForecastCard({
       />
       <GameHero
         appId={game.appId}
+        imageUrl={game.imageUrl}
         name={game.name}
+        previewUrls={game.previewUrls}
         previewActive={previewActive}
         priority={priority}
         wishlistRank={game.wishlistRank}
@@ -199,6 +206,7 @@ export function ForecastCard({
           {game.targets.map((target) => (
             <ForecastField
               appId={game.appId}
+              gameIsOpen={game.lifecycleStatus === "upcoming"}
               gameName={game.name}
               isAuthenticated={isAuthenticated}
               key={target.key}

@@ -17,6 +17,7 @@ vi.mock("@/data/actions/gamecast-actions", () => ({
 const game: SteamUpcomingGame = {
   appId: 42,
   imageUrl: "https://example.com/game.jpg",
+  lifecycleStatus: "upcoming",
   name: "Input Limit Test",
   releaseDate: "2026-08-01",
   releaseLabel: "August 1",
@@ -59,21 +60,34 @@ describe("ForecastCard", () => {
     expect(document.querySelector('img[src*="favicon"]')).toBeNull();
   });
 
-  it("cycles hero and two screenshots while the clickable card is hovered", () => {
+  it("cycles hero and two screenshots on every clickable-card hover", () => {
     vi.useFakeTimers();
-    const previewGame = { ...game, appId: 1368140, name: "Corsair Cove" };
+    const previewGame = {
+      ...game,
+      appId: 1368140,
+      name: "Corsair Cove",
+      previewUrls: ["/storage/1368140-1.webp", "/storage/1368140-2.webp"],
+    };
     const { container } = render(<ForecastCard game={previewGame} isAuthenticated />);
     const card = container.querySelector(".sb-game-card") as HTMLElement;
     const artwork = screen.getByRole("img", { name: "Corsair Cove artwork" });
 
     fireEvent.mouseEnter(card);
-    expect(artwork.getAttribute("src")).toBe(getSteamGameHeroUrl(1368140));
+    expect(artwork.getAttribute("src")).toBe(game.imageUrl);
     act(() => vi.advanceTimersByTime(1000));
-    expect(artwork.getAttribute("src")).toBe("/game-previews/1368140-1.webp");
+    expect(artwork.getAttribute("src")).toBe(previewGame.previewUrls[0]);
     act(() => vi.advanceTimersByTime(1000));
-    expect(artwork.getAttribute("src")).toBe("/game-previews/1368140-2.webp");
+    expect(artwork.getAttribute("src")).toBe(previewGame.previewUrls[1]);
     act(() => vi.advanceTimersByTime(1000));
-    expect(artwork.getAttribute("src")).toBe(getSteamGameHeroUrl(1368140));
+    expect(artwork.getAttribute("src")).toBe(game.imageUrl);
+
+    fireEvent.mouseLeave(card);
+    expect(artwork.getAttribute("src")).toBe(game.imageUrl);
+    fireEvent.mouseEnter(card);
+    act(() => vi.advanceTimersByTime(1000));
+    expect(artwork.getAttribute("src")).toBe(previewGame.previewUrls[0]);
+    act(() => vi.advanceTimersByTime(1000));
+    expect(artwork.getAttribute("src")).toBe(previewGame.previewUrls[1]);
   });
 
   it("falls back to the Steam artwork resolver when a stored banner is missing", () => {
@@ -211,5 +225,25 @@ describe("ForecastCard", () => {
     expect(screen.getByRole("textbox", {
       name: "First weekend peak CCU for Input Limit Test",
     })).toHaveProperty("disabled", true);
+  });
+
+  it("keeps every input closed after a game is released", () => {
+    render(
+      <ForecastCard
+        game={{ ...game, lifecycleStatus: "released" }}
+        isAuthenticated
+      />,
+    );
+
+    const inputs = screen.getAllByRole("textbox") as HTMLInputElement[];
+    expect(inputs).toHaveLength(3);
+    expect(inputs.every((input) => input.disabled && input.readOnly)).toBe(true);
+    expect(screen.getAllByText("Closed")).toHaveLength(3);
+
+    fireEvent.focus(inputs[0]!);
+    expect(screen.queryByRole("button", {
+      name: "Confirm First weekend peak CCU prediction",
+    })).toBeNull();
+    expect(mocks.execute).not.toHaveBeenCalled();
   });
 });

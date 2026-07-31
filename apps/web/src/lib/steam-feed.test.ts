@@ -5,6 +5,7 @@ import { STEAM_BET_TARGETS, type SteamUpcomingGame } from "./steam-bets";
 const game = (appId: number, name: string): SteamUpcomingGame => ({
   appId,
   name,
+  lifecycleStatus: "upcoming",
   releaseDate: "2026-08-01",
   releaseLabel: "Aug 1",
   imageUrl: `https://example.com/${appId}.jpg`,
@@ -51,6 +52,43 @@ describe("buildSteamFeed", () => {
       ],
     });
     expect(games.map(({ appId }) => appId)).toEqual([2, 1]);
+  });
+
+  it("never includes released games in trending or popular upcoming feeds", () => {
+    const upcoming = game(1, "Upcoming");
+    const released = { ...game(2, "Released"), lifecycleStatus: "released" as const };
+
+    for (const mode of ["upcoming", "trending"] as const) {
+      const games = buildSteamFeed({
+        mode,
+        liveGames: [released, upcoming],
+        bets: [],
+        trends: [{
+          steam_app_id: released.appId,
+          bet_count: 100,
+          game_name: released.name,
+          release_date: "2026-07-31",
+          release_label: "July 31",
+          image_url: released.imageUrl,
+        }],
+      });
+
+      expect(games.map(({ appId }) => appId)).toEqual([upcoming.appId]);
+    }
+  });
+
+  it("puts only released games in the completed feed", () => {
+    const upcoming = game(1, "Upcoming");
+    const released = { ...game(2, "Released"), lifecycleStatus: "released" as const };
+
+    const games = buildSteamFeed({
+      mode: "completed",
+      liveGames: [upcoming, released],
+      bets: [],
+      trends: [],
+    });
+
+    expect(games.map(({ appId }) => appId)).toEqual([released.appId]);
   });
 
   it("keeps only canonical catalog games in the involved feed and restores locked values", () => {

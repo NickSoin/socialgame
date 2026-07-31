@@ -1,13 +1,16 @@
 const accessToken = process.env.SUPABASE_ACCESS_TOKEN;
 const projectRef = process.env.SUPABASE_PROJECT_REF;
+const steamSyncSecret = process.env.STEAM_SYNC_CRON_SECRET;
 
-if (!accessToken || !projectRef) {
-  throw new Error("Set SUPABASE_ACCESS_TOKEN and SUPABASE_PROJECT_REF before running this script.");
+if (!accessToken || !projectRef || !steamSyncSecret || steamSyncSecret.length < 32) {
+  throw new Error(
+    "Set SUPABASE_ACCESS_TOKEN, SUPABASE_PROJECT_REF, and a 32+ character STEAM_SYNC_CRON_SECRET.",
+  );
 }
 
 const jobs = [
-  ["sync-steam-catalog-every-2-hours", "7 */2 * * *", "sync-steam-catalog"],
-  ["sync-steam-popular-every-2-hours", "17 */2 * * *", "sync-steam-popular"],
+  ["sync-steam-catalog-after-upstream", "15 1,6,11,16,21 * * *", "sync-steam-catalog"],
+  ["sync-steam-popular-every-3-hours", "17 */3 * * *", "sync-steam-popular"],
   ["sync-steam-details-every-10-minutes", "2,12,22,32,42,52 * * * *", "sync-steam-details"],
 ];
 const databaseJobs = [
@@ -20,6 +23,8 @@ const databaseJobs = [
 ];
 const managedJobNames = [
   "sync-steam-wishlist-catalog",
+  "sync-steam-catalog-every-2-hours",
+  "sync-steam-popular-every-2-hours",
   "sync-steam-details-every-2-hours",
   "sync-steam-details-hourly",
   ...jobs.map(([name]) => name),
@@ -30,11 +35,26 @@ const invokeFunctionSql = (functionName) => `SELECT net.http_post(
   url := (SELECT decrypted_secret FROM vault.decrypted_secrets WHERE name = 'next_hit_market_project_url') || '/functions/v1/${functionName}',
   headers := jsonb_build_object(
     'Content-Type', 'application/json',
-    'apikey', (SELECT decrypted_secret FROM vault.decrypted_secrets WHERE name = 'next_hit_market_publishable_key')
+    'apikey', (SELECT decrypted_secret FROM vault.decrypted_secrets WHERE name = 'next_hit_market_publishable_key'),
+    'x-steam-sync-secret', (SELECT decrypted_secret FROM vault.decrypted_secrets WHERE name = 'next_hit_market_steam_sync_secret')
   ),
   body := '{}'::jsonb,
   timeout_milliseconds := 180000
 )`;
+
+await runQuery(`
+  DO $$
+  DECLARE secret_id uuid;
+  BEGIN
+    SELECT id INTO secret_id FROM vault.decrypted_secrets
+    WHERE name = 'next_hit_market_steam_sync_secret';
+    IF secret_id IS NULL THEN
+      PERFORM vault.create_secret(${sqlString(steamSyncSecret)}, 'next_hit_market_steam_sync_secret');
+    ELSE
+      PERFORM vault.update_secret(secret_id, ${sqlString(steamSyncSecret)});
+    END IF;
+  END $$;
+`);
 
 await runQuery(`
   SELECT cron.unschedule(jobid)

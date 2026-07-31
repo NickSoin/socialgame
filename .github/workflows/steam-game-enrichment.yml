@@ -1,0 +1,46 @@
+name: Steam game enrichment
+
+on:
+  schedule:
+    - cron: "7,37 * * * *"
+  workflow_dispatch:
+    inputs:
+      limit:
+        description: Maximum games to process
+        default: "100"
+        required: false
+      app_id:
+        description: Optional Steam app ID canary or repair
+        required: false
+
+concurrency:
+  group: steam-game-enrichment-production
+  cancel-in-progress: false
+
+jobs:
+  enrich:
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    permissions:
+      contents: read
+    env:
+      SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+      SUPABASE_SECRET_KEY: ${{ secrets.SUPABASE_SECRET_KEY }}
+      STEAM_SYNC_CRON_SECRET: ${{ secrets.STEAM_SYNC_CRON_SECRET }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - name: Setup workspace
+        uses: ./.github/actions/ci-setup
+      - name: Run resumable enrichment batch
+        shell: bash
+        env:
+          REQUESTED_LIMIT: ${{ inputs.limit }}
+          REQUESTED_APP_ID: ${{ inputs.app_id }}
+        run: |
+          args=(--limit "${REQUESTED_LIMIT:-100}" --concurrency 4)
+          if [[ -n "${REQUESTED_APP_ID:-}" ]]; then
+            args+=(--app-id "$REQUESTED_APP_ID")
+          fi
+          pnpm steam:backfill -- "${args[@]}"

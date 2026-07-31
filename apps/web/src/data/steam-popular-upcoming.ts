@@ -1,4 +1,3 @@
-import { cacheLife, cacheTag } from "next/cache";
 import "server-only";
 import type { SteamUpcomingGame } from "@/lib/steam-bets";
 import {
@@ -13,9 +12,6 @@ export async function getSteamPopularUpcoming({
   limit?: number;
   offset?: number;
 } = {}): Promise<SteamCatalogPage> {
-  "use cache";
-  cacheLife("minutes");
-  cacheTag("steam-popular-upcoming");
   return (await getSteamPopularUpcomingGames({ limit, offset })) ?? {
     games: [] as SteamUpcomingGame[],
     total: 0,

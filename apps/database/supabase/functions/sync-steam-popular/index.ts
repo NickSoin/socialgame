@@ -1,14 +1,10 @@
 import "jsr:@supabase/functions-js/edge-runtime.d.ts";
 import { createClient } from "npm:@supabase/supabase-js@2.105.4";
-import {
-  applySteamAppDetails,
-  fetchSteamAppDetails,
-} from "../_shared/steam-app-details.ts";
+import { authorizeScheduledRequest } from "../_shared/scheduled-auth.ts";
 import { parseSteamPopularUpcoming } from "../_shared/steam-popular-upcoming.ts";
 
 const PAGE_SIZE = 100;
 const PAGE_COUNT = 2;
-const DETAILS_CONCURRENCY = 8;
 
 function steamPopularUpcomingUrl(start: number) {
   const url = new URL("https://store.steampowered.com/search/results/");
@@ -26,19 +22,11 @@ function steamPopularUpcomingUrl(start: number) {
 }
 
 Deno.serve(async (request) => {
-  if (request.method === "OPTIONS") {
-    return new Response(null, {
-      status: 204,
-      headers: {
-        "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
-        "Access-Control-Allow-Methods": "POST, OPTIONS",
-        "Access-Control-Allow-Origin": "*",
-      },
-    });
-  }
   if (request.method !== "POST") {
     return Response.json({ error: "Method not allowed" }, { status: 405 });
   }
+  const unauthorized = authorizeScheduledRequest(request);
+  if (unauthorized) return unauthorized;
 
   const supabaseUrl = Deno.env.get("SUPABASE_URL");
   const serviceRoleKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY");
@@ -82,33 +70,18 @@ Deno.serve(async (request) => {
     }
 
     const refreshedAt = new Date().toISOString();
-    const refreshedRows = await mapWithConcurrency(
-      matchedEntries,
-      DETAILS_CONCURRENCY,
-      async (entry) => {
-        const catalogRow = catalogById.get(entry.appId)!;
-        const details = await fetchSteamAppDetails(entry.appId);
-        const enrichedRow = details
-          ? applySteamAppDetails(catalogRow, details, refreshedAt)
-          : catalogRow;
-        const released = details?.released === true;
-        return {
-          ...enrichedRow,
-          is_popular_upcoming: !released,
-          popular_upcoming_position: released ? null : entry.position,
-          steam_data_attempted_at: refreshedAt,
-        };
-      },
-    );
+    const refreshedRows = matchedEntries.map((entry) => ({
+      ...catalogById.get(entry.appId)!,
+      is_popular_upcoming: true,
+      popular_upcoming_position: entry.position,
+    }));
 
     const { error: upsertError } = await supabase
       .from("steam_games")
       .upsert(refreshedRows, { onConflict: "steam_app_id" });
     if (upsertError) throw upsertError;
 
-    const activePopularIds = refreshedRows
-      .filter((row) => row.is_popular_upcoming)
-      .map((row) => Number(row.steam_app_id));
+    const activePopularIds = refreshedRows.map((row) => Number(row.steam_app_id));
     let staleQuery = supabase
       .from("steam_games")
       .update({ is_popular_upcoming: false, popular_upcoming_position: null })
@@ -119,14 +92,14 @@ Deno.serve(async (request) => {
     const { error: staleError } = await staleQuery;
     if (staleError) throw staleError;
 
-    const popularCount = refreshedRows.filter((row) => row.is_popular_upcoming).length;
+    const popularCount = refreshedRows.length;
 
     return Response.json({
       status: "synced",
       refreshedAt,
       steamCount: steamEntries.length,
       topWishlistedCount: popularCount,
-      releasedCount: refreshedRows.length - popularCount,
+      releasedCount: 0,
     });
   } catch (error) {
     const message = error instanceof Error ? error.message : String(error);
@@ -163,23 +136,4 @@ async function fetchJsonWithRetry<T>(url: string, attempts = 3): Promise<T> {
   }
 
   throw lastError;
-}
-
-async function mapWithConcurrency<T, R>(
-  values: T[],
-  concurrency: number,
-  task: (value: T) => Promise<R>,
-) {
-  const results = new Array<R>(values.length);
-  let nextIndex = 0;
-  await Promise.all(
-    Array.from({ length: Math.min(concurrency, values.length) }, async () => {
-      while (nextIndex < values.length) {
-        const index = nextIndex;
-        nextIndex += 1;
-        results[index] = await task(values[index]!);
-      }
-    }),
-  );
-  return results;
 }

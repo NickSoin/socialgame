@@ -146,6 +146,7 @@ export function HeaderSearch() {
                 >
                   <GameHero
                     appId={game.appId}
+                    imageUrl={game.imageUrl}
                     name={game.name}
                     variant="search"
                     wishlistRank={game.wishlistRank}

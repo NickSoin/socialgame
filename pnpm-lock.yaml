@@ -29,6 +29,12 @@ importers:
 
   apps/database:
     dependencies:
+      '@supabase/supabase-js':
+        specifier: 2.105.4
+        version: 2.105.4
+      sharp:
+        specifier: 0.34.5
+        version: 0.34.5
       supabase:
         specifier: ^2.98.2
         version: 2.98.2
@@ -310,6 +316,9 @@ importers:
       react-server-dom-webpack:
         specifier: 19.2.6
         version: 19.2.6(react-dom@19.2.6(react@19.2.6))(react@19.2.6)(webpack@5.109.0(esbuild@0.28.0)(postcss@8.5.14))
+      sharp:
+        specifier: 0.34.5
+        version: 0.34.5
       tw-animate-css:
         specifier: ^1.4.0
         version: 1.4.0

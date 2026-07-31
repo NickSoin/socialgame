@@ -1,8 +1,33 @@
-const STEAM_HOVER_PREVIEWS: Readonly<Record<number, readonly string[]>> = {
-  1368140: ["/game-previews/1368140-1.webp", "/game-previews/1368140-2.webp"],
-  3738830: ["/game-previews/3738830-1.webp", "/game-previews/3738830-2.webp"],
+export type SteamHoverPreviewRecord = {
+  active: boolean;
+  kind: string;
+  position: number;
+  storage_bucket: string;
+  storage_path: string;
 };
 
-export function getSteamHoverPreviews(appId: number): readonly string[] {
-  return STEAM_HOVER_PREVIEWS[appId] ?? [];
+export function getSteamHoverPreviewUrl(record: SteamHoverPreviewRecord) {
+  if (!record.active || record.kind !== "screenshot" || ![1, 2].includes(record.position)) return null;
+  const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
+  if (!supabaseUrl) return null;
+  try {
+    const path = record.storage_path.split("/").map(encodeURIComponent).join("/");
+    return new URL(
+      `/storage/v1/object/public/${encodeURIComponent(record.storage_bucket)}/${path}`,
+      supabaseUrl,
+    ).toString();
+  } catch {
+    return null;
+  }
+}
+
+export function getSteamHoverPreviews(records: readonly SteamHoverPreviewRecord[] | null | undefined) {
+  return (records ?? [])
+    .slice()
+    .sort((left, right) => left.position - right.position)
+    .flatMap((record) => {
+      const url = getSteamHoverPreviewUrl(record);
+      return url ? [url] : [];
+    })
+    .slice(0, 2);
 }

@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import {
   formatSteamReleaseLabel,
   normalizeSteamReleaseDate,
+  normalizeSteamReleaseMetadata,
 } from "../../../database/supabase/functions/_shared/steam-release-date";
 import { parseSteamPopularUpcoming } from "../../../database/supabase/functions/_shared/steam-popular-upcoming";
 
@@ -15,7 +16,7 @@ describe("normalizeSteamReleaseDate", () => {
   });
 
   it.each(["2026", "July 2026", "Q3 2026", "Coming soon", "To be announced", ""])(
-    "keeps an incomplete Steam date as TBA: %s",
+    "never coerces an incomplete Steam date to a calendar day: %s",
     (value) => {
       expect(normalizeSteamReleaseDate(value)).toBeNull();
       expect(formatSteamReleaseLabel(normalizeSteamReleaseDate(value))).toBe("TBA");
@@ -24,6 +25,33 @@ describe("normalizeSteamReleaseDate", () => {
 
   it("rejects impossible calendar dates", () => {
     expect(normalizeSteamReleaseDate("February 31, 2026")).toBeNull();
+    expect(normalizeSteamReleaseMetadata("February 31, 2026").invalid).toBe(true);
+  });
+
+  it.each([
+    ["July 2026", "month", "July 2026"],
+    ["Q3 2026", "quarter", "Q3 2026"],
+    ["2026", "year", "2026"],
+    ["Summer 2026", "year", "Summer 2026"],
+    ["Coming&nbsp;soon", "tba", "TBA"],
+  ])("preserves truthful precision for %s", (value, precision, label) => {
+    expect(normalizeSteamReleaseMetadata(value)).toMatchObject({
+      exactDate: null,
+      precision,
+      label,
+      invalid: false,
+    });
+  });
+
+  it("validates leap years in UTC", () => {
+    expect(normalizeSteamReleaseDate("February 29, 2028")).toBe("2028-02-29");
+    expect(normalizeSteamReleaseDate("February 29, 2027")).toBeNull();
+  });
+
+  it("keeps the Dear Passengers 2026 source label out of an exact-date bucket", () => {
+    const source = normalizeSteamReleaseMetadata("2026");
+    expect(source).toMatchObject({ exactDate: null, label: "2026", precision: "year" });
+    expect(source.exactDate).not.toBe("2026-01-01");
   });
 });
 
