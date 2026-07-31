@@ -816,14 +816,17 @@ button:disabled {
   border-radius: 9px;
   background: #fff;
 }
-.sb-forecast-status-tabs a {
+.sb-forecast-status-tabs :is(a, button) {
   padding: 5px 13px;
+  border: 0;
   border-radius: 6px;
+  background: transparent;
   color: var(--muted-foreground);
   font-size: var(--font-secondary);
   font-weight: 650;
+  cursor: pointer;
 }
-.sb-forecast-status-tabs a.is-active {
+.sb-forecast-status-tabs :is(a, button).is-active {
   background: #eef2ff;
   color: var(--accent);
 }

@@ -2,6 +2,7 @@ import 'server-only';
 import type { SupabaseClient } from '@supabase/supabase-js';
 import { advanceClock } from './clock';
 import { createStagingAdminClient } from './admin-client';
+import { isBatchSimulationPlayer } from './player-visibility';
 import { getPreset, SIMULATION_PRESETS } from './presets';
 import { canonicalPoints, percentileValue, scoreInputs } from './scoring';
 import type {
@@ -888,6 +889,9 @@ export async function getGameMasterData(selectedSimulationId?: string | null) {
   const snapshots = new Map(snapshotRows.map((snapshot) => [snapshot.id, snapshot]));
   const playerMap = new Map(players.map((player) => [player.id, player]));
   const marketMap = new Map(markets.map((market) => [market.id, market]));
+  const leaderboardEntries = scoreEntries.filter(
+    (entry) => !isBatchSimulationPlayer(playerMap.get(entry.player_id)),
+  );
   function buildLeaderboard(entries: typeof scoreEntries) {
     const aggregate = new Map<string, { playerId: string; points: number; scoredDays: Set<string>; markets: Set<string>; positive: Set<string>; negative: Set<string> }>();
     for (const entry of entries) {
@@ -913,10 +917,12 @@ export async function getGameMasterData(selectedSimulationId?: string | null) {
     })).sort((left, right) => right.points - left.points || right.scoredDays - left.scoredDays)
       .map((row, index) => ({ ...row, rank: index + 1 }));
   }
-  const leaderboard = buildLeaderboard(scoreEntries);
+  const leaderboard = buildLeaderboard(leaderboardEntries);
   const leaderboardByMetric = Object.fromEntries(['all', ...METRICS].map((metric) => [
     metric,
-    buildLeaderboard(metric === 'all' ? scoreEntries : scoreEntries.filter((entry) => marketMap.get(entry.market_id)?.metric_type === metric)),
+    buildLeaderboard(metric === 'all'
+      ? leaderboardEntries
+      : leaderboardEntries.filter((entry) => marketMap.get(entry.market_id)?.metric_type === metric)),
   ]));
 
   const comparisonDefinitions = [
@@ -926,7 +932,7 @@ export async function getGameMasterData(selectedSimulationId?: string | null) {
   ];
   const formulaComparison = comparisonDefinitions.map((formula) => {
     const totals = new Map<string, number>();
-    for (const entry of scoreEntries) totals.set(entry.player_id, (totals.get(entry.player_id) ?? 0) + formula.value(entry));
+    for (const entry of leaderboardEntries) totals.set(entry.player_id, (totals.get(entry.player_id) ?? 0) + formula.value(entry));
     return {
       formulaKey: formula.key,
       label: formula.label,

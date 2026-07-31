@@ -1,9 +1,11 @@
 import 'server-only';
 import type { SupabaseClient } from '@supabase/supabase-js';
+import { getSteamBetTrends } from '@/data/steam-bets';
 import { getSteamCatalogGames, getSteamCatalogGamesByIdsAnyLifecycle } from '@/data/steam-game-catalog';
 import { getSteamPopularUpcoming } from '@/data/steam-popular-upcoming';
 import { percentileValue } from './scoring';
 import { createStagingAdminClient } from './admin-client';
+import { getVisibleSimulationPlayers } from './player-visibility';
 import { executeSimulationCommand, getGameMasterData } from './simulation-service';
 import type { StagingWorkspaceData } from './market-workspace-types';
 import type { StagingMetric, StagingPrincipal, StagingWorkspaceCommand } from './types';
@@ -373,12 +375,21 @@ export async function getStagingWorkspaceData(principal: StagingPrincipal): Prom
   const state = await getGameMasterData(workspace.id);
   if (!state.selected) throw new Error('Staging workspace could not be loaded.');
   const selected = state.selected;
+  const visiblePlayers = getVisibleSimulationPlayers(selected.players);
   const simulationGames = selected.games as Array<typeof selected.games[number] & { steam_app_id: number | null }>;
   const workspaceAppIds = simulationGames.flatMap((game) => game.steam_app_id === null ? [] : [Number(game.steam_app_id)]);
-  const [popularPage, wishlistGames, workspaceCatalogGames] = await Promise.all([
+  const [popularPage, wishlistGames, baselineTrends] = await Promise.all([
     getSteamPopularUpcoming({ limit: 50, offset: 0 }),
     getSteamCatalogGames(200),
-    getSteamCatalogGamesByIdsAnyLifecycle(workspaceAppIds),
+    getSteamBetTrends().catch((error: unknown) => {
+      console.error('Could not load baseline staging trends.', error);
+      return [];
+    }),
+  ]);
+  const trendingAppIds = baselineTrends.map((trend) => trend.steam_app_id);
+  const workspaceCatalogGames = await getSteamCatalogGamesByIdsAnyLifecycle([
+    ...workspaceAppIds,
+    ...trendingAppIds,
   ]);
   const catalogMap = new Map(
     [...(wishlistGames ?? []), ...popularPage.games, ...workspaceCatalogGames]
@@ -415,7 +426,7 @@ export async function getStagingWorkspaceData(principal: StagingPrincipal): Prom
     }];
   });
   const scored = new Map(selected.leaderboard.map((row) => [row.playerId, row]));
-  const leaderboard = selected.players
+  const leaderboard = visiblePlayers
     .map((player) => ({
       rank: 0,
       playerId: player.id,
@@ -435,7 +446,8 @@ export async function getStagingWorkspaceData(principal: StagingPrincipal): Prom
     },
     catalogGames: [...catalogMap.values()],
     popularAppIds: popularPage.games.map((game) => game.appId),
-    players: selected.players.map((player) => ({ id: player.id, username: player.username, displayName: player.display_name })),
+    trendingAppIds,
+    players: visiblePlayers.map((player) => ({ id: player.id, username: player.username, displayName: player.display_name })),
     games,
     leaderboard,
   };

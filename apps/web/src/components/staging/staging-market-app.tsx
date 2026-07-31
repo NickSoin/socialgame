@@ -32,6 +32,7 @@ import type {
 } from '@/lib/staging/market-workspace-types';
 
 type FeedMode = 'upcoming' | 'trending' | 'completed' | 'involved';
+type ForecastStatus = 'open' | 'resolved';
 
 const compactNumber = new Intl.NumberFormat('en-US', {
   notation: 'compact',
@@ -272,7 +273,7 @@ function ManipulationPanel({
           <label>Max<input aria-label={`${game.name} ${target.label} batch maximum`} inputMode="decimal" value={maximum} onChange={(event) => setMaximum(event.target.value.replace(/[^\d.]/g, '').slice(0, 10))} /></label>
           <button
             type="button"
-            aria-label={`Randomize forecasts for ${game.name} ${target.label}`}
+            aria-label={`Add batch forecasts for ${game.name} ${target.label}`}
             disabled={disabled || !batchIsValid}
             onClick={() => onCommand({
               action: 'batch_forecasts',
@@ -281,8 +282,8 @@ function ManipulationPanel({
               count: parsedCount,
               minimum: parsedMinimum,
               maximum: parsedMaximum,
-            }, `${parsedCount} randomized forecasts added.`)}
-          >Randomize</button>
+            }, `${parsedCount} batch forecasts added.`)}
+          >Add batch</button>
         </div>
         <label className="sb-manipulation-resolution">
           <span>Resolve result</span>
@@ -496,6 +497,7 @@ export function StagingMarketApp({ initialData }: { initialData: StagingWorkspac
   const [data, setData] = useState(initialData);
   const [activePlayerId, setActivePlayerId] = useState<string | null>(initialData.players[0]?.id ?? null);
   const [mode, setMode] = useState<FeedMode>('upcoming');
+  const [forecastStatus, setForecastStatus] = useState<ForecastStatus>('open');
   const [query, setQuery] = useState('');
   const [error, setError] = useState<string | null>(null);
   const [notice, setNotice] = useState<string | null>(null);
@@ -545,25 +547,36 @@ export function StagingMarketApp({ initialData }: { initialData: StagingWorkspac
     const normalizedQuery = query.trim().toLocaleLowerCase('en-US');
     let candidates = data.catalogGames.filter((game) => {
       const state = stateByAppId.get(game.appId);
+      const predictionCount = state?.markets.reduce((sum, market) => sum + market.predictionCount, 0) ?? 0;
       if (normalizedQuery) return game.name.toLocaleLowerCase('en-US').includes(normalizedQuery);
       if (mode === 'upcoming') return data.popularAppIds.includes(game.appId) && !state?.completed;
       if (mode === 'completed') return state?.completed;
-      if (mode === 'involved') return state?.markets.some((market) => market.forecasts.some((forecast) => forecast.playerId === activePlayerId));
-      return Boolean(state && !state.completed && state.markets.some((market) => market.predictionCount > 0));
+      if (mode === 'involved') {
+        const hasPlayerForecast = state?.markets.some((market) => market.forecasts.some((forecast) => forecast.playerId === activePlayerId));
+        if (!hasPlayerForecast) return false;
+        return forecastStatus === 'resolved'
+          ? state?.markets.some((market) => market.status === 'resolved')
+          : state?.markets.some((market) => market.status !== 'resolved' && market.status !== 'void');
+      }
+      return !state?.completed
+        && game.lifecycleStatus === 'upcoming'
+        && (predictionCount > 0 || data.trendingAppIds.includes(game.appId));
     });
     if (!normalizedQuery && mode === 'upcoming') {
       const order = new Map(data.popularAppIds.map((appId, index) => [appId, index]));
       candidates = candidates.sort((left, right) => (order.get(left.appId) ?? 9999) - (order.get(right.appId) ?? 9999));
     }
     if (!normalizedQuery && mode === 'trending') {
+      const baselineOrder = new Map(data.trendingAppIds.map((appId, index) => [appId, index]));
       candidates = candidates.sort((left, right) => {
         const leftCount = stateByAppId.get(left.appId)?.markets.reduce((sum, market) => sum + market.predictionCount, 0) ?? 0;
         const rightCount = stateByAppId.get(right.appId)?.markets.reduce((sum, market) => sum + market.predictionCount, 0) ?? 0;
-        return rightCount - leftCount;
+        return rightCount - leftCount
+          || (baselineOrder.get(left.appId) ?? Number.MAX_SAFE_INTEGER) - (baselineOrder.get(right.appId) ?? Number.MAX_SAFE_INTEGER);
       });
     }
     return candidates.map((game) => mergeGameState(game, stateByAppId.get(game.appId), activePlayerId));
-  }, [activePlayerId, data.catalogGames, data.popularAppIds, mode, query, stateByAppId]);
+  }, [activePlayerId, data.catalogGames, data.popularAppIds, data.trendingAppIds, forecastStatus, mode, query, stateByAppId]);
 
   return (
     <div className="sb-staging-app">
@@ -590,7 +603,7 @@ export function StagingMarketApp({ initialData }: { initialData: StagingWorkspac
         <nav className="sb-categories" aria-label="Staging game list">
           <div className="sb-shell sb-categories__inner">
             {TABS.map(({ id, label, icon: Icon }) => (
-              <button className={mode === id ? 'is-active' : undefined} key={id} type="button" onClick={() => { setMode(id); setQuery(''); }}>
+              <button className={mode === id ? 'is-active' : undefined} key={id} type="button" onClick={() => { setMode(id); setQuery(''); if (id === 'involved') setForecastStatus('open'); }}>
                 <Icon size={21} strokeWidth={1.8} aria-hidden="true" />{label}
               </button>
             ))}
@@ -604,6 +617,12 @@ export function StagingMarketApp({ initialData }: { initialData: StagingWorkspac
         <div className="sb-page-grid">
           <main className="sb-feed-column" id="main-content">
             <h1 className="sr-only">NextHit Market staging</h1>
+            {mode === 'involved' ? (
+              <nav className="sb-forecast-status-tabs" aria-label="Forecast status">
+                <button className={forecastStatus === 'open' ? 'is-active' : undefined} type="button" onClick={() => setForecastStatus('open')}>Open</button>
+                <button className={forecastStatus === 'resolved' ? 'is-active' : undefined} type="button" onClick={() => setForecastStatus('resolved')}>Resolved</button>
+              </nav>
+            ) : null}
             {games.length ? (
               <div className="sb-game-list">
                 {games.map((game, index) => (

@@ -41,6 +41,7 @@ export type StagingWorkspaceData = {
   };
   catalogGames: SteamUpcomingGame[];
   popularAppIds: number[];
+  trendingAppIds: number[];
   players: StagingWorkspacePlayer[];
   games: StagingWorkspaceGame[];
   leaderboard: StagingWorkspaceLeaderboardRow[];
