@@ -44,7 +44,7 @@ The staging database composes the production declarative schema with `apps/stagi
 ## Running a simulation
 
 1. Open `/internal/game-master` and create one of the ten deterministic presets with a seed.
-2. Use **Run/Pause**, `+1 hour`, `+1 day`, `+7 days`, or **Next event**. Time is isolated per simulation and only moves forward.
+2. Use **Run/Pause**, `+1 hour`, `+1 day`, `+7 days`, **Set time**, **Next event**, **Next lock**, or **Next resolution**. Time is isolated per simulation and only moves forward.
 3. Generate synthetic players and forecast batches. Synthetic players never become Auth users.
 4. Create a game with its three standard markets, or add an individual market. Submit a manual forecast from the Players tab when an exact edge case is needed.
 5. Lock a market manually or advance past its lock time. Run snapshots manually or let clock advancement create crossed-midnight snapshots.
@@ -52,7 +52,7 @@ The staging database composes the production declarative schema with `apps/stagi
 7. Inspect the canonical leave-one-out result in **Leaderboard** and **Score Inspector**. Formula Comparison is read-only and never changes canonical points.
 8. Add an external signal to record a scenario event without calling any real external service.
 9. Save checkpoints, restore or clone any selected checkpoint, or clone the exact current state. Export/import uses `nexthit-simulation-v1` JSON with all identifiers safely remapped; the downloadable JSON also includes the immutable event log, checkpoint manifest, and leaderboard. Separate CSV downloads cover forecasts, snapshots, score entries, and the canonical leaderboard.
-10. Player Preview creates only a bannered, read-only product preview context. It cannot impersonate a real Auth user.
+10. Player Preview creates a persistent simulation banner and a seeded-player product preview. The designer can submit or edit that player's forecast, inspect **My Forecasts**, and view the simulation leaderboard without impersonating a real Auth user.
 
 ## Required release verification
 

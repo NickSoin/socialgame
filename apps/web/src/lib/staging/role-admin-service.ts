@@ -36,17 +36,35 @@ export async function getRoleAdminData(query = '') {
   assertNoError(auditResult.error, 'Could not load role audit log');
   const roleMap = new Map((rolesResult.data ?? []).map((row) => [row.user_id, row.role]));
   const profileMap = new Map((profilesResult.data ?? []).map((row) => [row.id, row]));
+  const latestRoleChange = new Map<string, { action: string; created_at: string }>();
+  for (const entry of auditResult.data ?? []) {
+    if (entry.target_user_id && !latestRoleChange.has(entry.target_user_id) && ['role_granted', 'role_revoked', 'assignment_claimed'].includes(entry.action)) {
+      latestRoleChange.set(entry.target_user_id, { action: entry.action, created_at: entry.created_at });
+    }
+  }
 
   const users = allUsers
     .map((user) => {
       const profile = profileMap.get(user.id);
       const email = user.email?.toLowerCase() ?? '';
+      const root = isRootAdminEmail(email);
+      const role: 'user' | 'game_designer' | 'root' = root ? 'root' : roleMap.get(user.id) === 'game_designer' ? 'game_designer' : 'user';
+      const lastChange = latestRoleChange.get(user.id);
+      const roleSource: 'default' | 'root assignment' | 'pending assignment' | 'root environment' = root
+        ? 'root environment'
+        : role === 'game_designer' && lastChange?.action === 'assignment_claimed'
+          ? 'pending assignment'
+          : role === 'game_designer'
+            ? 'root assignment'
+            : 'default';
       return {
         id: user.id,
         email,
         username: profile?.username ?? null,
         displayName: profile?.display_name ?? null,
-        role: isRootAdminEmail(email) ? 'root' : roleMap.get(user.id) ?? 'user',
+        role,
+        roleSource,
+        lastRoleChangeAt: lastChange?.created_at ?? null,
         verified: Boolean(user.email_confirmed_at),
         createdAt: user.created_at,
         lastSignInAt: user.last_sign_in_at ?? null,

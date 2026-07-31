@@ -10,6 +10,8 @@ const commandSchema = z.discriminatedUnion('action', [
   z.object({ action: z.enum(['run', 'pause', 'archive', 'checkpoint', 'clone']), simulationId }),
   z.object({ action: z.literal('reset'), simulationId, checkpointId: z.string().uuid().optional() }),
   z.object({ action: z.literal('clone_checkpoint'), simulationId, checkpointId: z.string().uuid() }),
+  z.object({ action: z.literal('set_time'), simulationId, at: z.string().datetime() }),
+  z.object({ action: z.enum(['advance_to_lock', 'advance_to_resolution']), simulationId }),
   z.object({ action: z.literal('advance'), simulationId, seconds: z.number().int().positive().max(31_536_000) }),
   z.object({ action: z.literal('next_event'), simulationId }),
   z.object({ action: z.literal('generate_players'), simulationId, count: z.number().int().min(1).max(500), prefix: z.string().trim().min(1).max(24).optional(), behavior: z.enum(['follower', 'contrarian', 'expert', 'late', 'random', 'outlier']).optional(), skillMin: z.number().min(0).max(1).optional(), skillMax: z.number().min(0).max(1).optional(), seed: z.number().int().positive().optional(), avatarMode: z.string().trim().max(40).optional() }),

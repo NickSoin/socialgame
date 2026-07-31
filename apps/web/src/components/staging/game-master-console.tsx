@@ -20,13 +20,13 @@ type ConsoleData = {
     snapshots: Array<{ id: string; market_id: string; snapshot_at: string; eligible_prediction_count: number; crowd_percentile: number | null }>;
     snapshotStats: Array<{ id: string; market_id: string; snapshot_at: string; eligible_prediction_count: number; mean: number | null; median: number | null; minimum: number | null; maximum: number | null; standardDeviation: number | null; status: string }>;
     results: Array<{ id: string; market_id: string; actual_raw_value: number; result_version: number }>;
-    events: Array<{ id: number; event_type: string; event_at: string; created_at: string; payload: Record<string, unknown>; market_id: string | null; player_id: string | null }>;
+    events: Array<{ id: number; event_type: string; event_at: string; created_at: string; payload: Record<string, unknown>; market_id: string | null; player_id: string | null; actor_user_id: string | null }>;
     checkpoints: Array<{ id: string; name: string; simulation_time: string; created_at: string }>;
     leaderboard: Array<{ rank: number; playerId: string; username: string; displayName: string; points: number; scoredDays: number; resolvedMarkets: number; averagePoints: number; positiveMarkets: number; negativeMarkets: number }>;
     leaderboardByMetric: Record<string, Array<{ rank: number; playerId: string; username: string; displayName: string; points: number; scoredDays: number; resolvedMarkets: number; averagePoints: number; positiveMarkets: number; negativeMarkets: number }>>;
     marketStats: Record<string, { participantCount: number; currentForecast: number | null; snapshotCount: number; actualResult: number | null; scoringStatus: string }>;
     formulaComparison: Array<{ formulaKey: string; label: string; leaderboard: Array<{ rank: number; playerId: string; username: string; displayName: string; points: number }> }>;
-    scoreInspector: Array<{ id: string; player: string; game: string; metric: string; user_percentile: number; crowd_without_user_percentile: number; actual_percentile: number; user_error: number; crowd_error: number; points: number }>;
+    scoreInspector: Array<{ id: string; player_id: string; market_id: string; player: string; game: string; metric: string; snapshotTime: string | null; user_percentile: number; crowd_without_user_percentile: number; actual_percentile: number; user_error: number; crowd_error: number; points: number }>;
     nextScheduledAt: string | null;
   };
 };
@@ -139,11 +139,14 @@ export function GameMasterConsole({
   }
 
   const totals = selected ? {
+    games: selected.games.length,
     markets: selected.markets.length,
+    openMarkets: selected.markets.filter((market) => market.status === 'open').length,
+    lockedMarkets: selected.markets.filter((market) => market.status === 'locked').length,
+    resolvedMarkets: selected.markets.filter((market) => market.status === 'resolved').length,
     players: selected.players.length,
     forecasts: selected.forecasts.length,
     snapshots: selected.snapshots.length,
-    points: selected.leaderboard.reduce((sum, row) => sum + row.points, 0),
   } : null;
 
   return (
@@ -180,6 +183,7 @@ export function GameMasterConsole({
       <main className="gm-main">
         {error ? <div className="gm-message gm-message--error" role="alert">{error}</div> : null}
         {notice ? <div className="gm-message gm-message--success" role="status">{notice}</div> : null}
+        {impersonated && selected ? <PlayerPreview data={selected} playerId={impersonated.id} onCommand={command} isPending={isPending} /> : null}
         {!selected ? (
           <section className="gm-empty">
             <Gauge size={30} />
@@ -201,7 +205,10 @@ export function GameMasterConsole({
                 <button disabled={isPending} type="button" onClick={() => command({ action: 'advance', simulationId, seconds: 3_600 }, 'Advanced one hour.')}>+1 hour</button>
                 <button disabled={isPending} type="button" onClick={() => command({ action: 'advance', simulationId, seconds: 86_400 }, 'Advanced one day.')}>+1 day</button>
                 <button disabled={isPending} type="button" onClick={() => command({ action: 'advance', simulationId, seconds: 604_800 }, 'Advanced one week.')}>+7 days</button>
+                <button disabled={isPending} type="button" onClick={() => { const current = selected.simulation.simulation_time.slice(0, 16); const at = window.prompt('Set simulation time (ISO 8601). Time can only move forward.', current); if (at) command({ action: 'set_time', simulationId, at: new Date(at).toISOString() }, 'Simulation time updated.'); }}>Set time</button>
                 <button disabled={isPending} type="button" onClick={() => command({ action: 'next_event', simulationId }, 'Advanced to next event.')}><FastForward size={14} />Next event</button>
+                <button disabled={isPending} type="button" onClick={() => command({ action: 'advance_to_lock', simulationId }, 'Advanced to next market lock.')}>Next lock</button>
+                <button disabled={isPending} type="button" onClick={() => command({ action: 'advance_to_resolution', simulationId }, 'Advanced to next resolution.')}>Next resolution</button>
                 <button disabled={isPending} type="button" onClick={() => command({ action: 'checkpoint', simulationId }, 'Checkpoint saved.')}><BookmarkCheck size={14} />Checkpoint</button>
                 <button disabled={isPending} type="button" onClick={() => command({ action: 'clone', simulationId }, 'Simulation cloned.', (result) => String(result.id ?? simulationId))}><Copy size={14} />Clone</button>
                 <button disabled={isPending} type="button" onClick={() => importInput.current?.click()}><Upload size={14} />Import</button>
@@ -215,11 +222,11 @@ export function GameMasterConsole({
 
             <div className="gm-kpis">
               <div><small>Simulated Time</small><strong>{formatDate(selected.simulation.simulation_time)}</strong></div>
-              <div><small>Markets</small><strong>{totals?.markets}</strong></div>
+              <div><small>Games / markets</small><strong>{totals?.games} / {totals?.markets}</strong></div>
               <div><small>Active players</small><strong>{totals?.players}</strong></div>
-              <div><small>Forecast versions</small><strong>{totals?.forecasts}</strong></div>
-              <div><small>Snapshots</small><strong>{totals?.snapshots}</strong></div>
-              <div><small>Competition points</small><strong>{formatNumber(totals?.points ?? 0)}</strong></div>
+              <div><small>Open / locked / resolved</small><strong>{totals?.openMarkets} / {totals?.lockedMarkets} / {totals?.resolvedMarkets}</strong></div>
+              <div><small>Forecasts / snapshots</small><strong>{totals?.forecasts} / {totals?.snapshots}</strong></div>
+              <div><small>Last event</small><strong>{selected.events[0]?.event_type ?? '—'}</strong></div>
             </div>
 
             {tab === 'simulations' ? <SimulationOverview data={selected} gameById={gameById} onCommand={command} isPending={isPending} marketValues={marketValues} setMarketValues={setMarketValues} /> : null}
@@ -244,6 +251,21 @@ export function GameMasterConsole({
       </main>
     </div>
   );
+}
+
+function PlayerPreview({ data, playerId, onCommand, isPending }: {
+  data: NonNullable<ConsoleData['selected']>;
+  playerId: string;
+  onCommand: (payload: Record<string, unknown>, success: string) => void;
+  isPending: boolean;
+}) {
+  const player = data.players.find((candidate) => candidate.id === playerId);
+  const openMarkets = data.markets.filter((market) => market.status === 'open');
+  const [marketId, setMarketId] = useState(openMarkets[0]?.id ?? '');
+  const [value, setValue] = useState('');
+  const forecasts = data.forecasts.filter((forecast) => forecast.player_id === playerId);
+  const rank = data.leaderboard.find((row) => row.playerId === playerId);
+  return <section className="gm-player-preview"><header><div><small>PUBLIC-PLAYER PREVIEW</small><h2>{player?.display_name ?? 'Seeded player'}</h2><span>@{player?.username ?? 'unknown'} · {rank ? `#${rank.rank} · ${formatNumber(rank.points)} points` : 'Unranked'}</span></div><strong>Test time {formatDate(data.simulation.simulation_time)}</strong></header><div className="gm-player-preview-grid"><form onSubmit={(event) => { event.preventDefault(); if (marketId && Number.isFinite(Number(value))) onCommand({ action: 'submit_forecast', simulationId: data.simulation.id, playerId, marketId, rawValue: Number(value) }, 'Forecast submitted as seeded player.'); }}><strong>Submit or edit forecast</strong><label>Open market<select value={marketId} onChange={(event) => setMarketId(event.target.value)}>{openMarkets.map((market) => <option key={market.id} value={market.id}>{data.games.find((game) => game.id === market.game_id)?.name} · {metricLabels[market.metric_type]}</option>)}</select></label><label>Your forecast<input required inputMode="decimal" value={value} onChange={(event) => setValue(event.target.value)} /></label><button disabled={isPending || !marketId} type="submit">Save forecast</button></form><div><strong>My Forecasts</strong>{forecasts.length ? forecasts.slice(0, 12).map((forecast) => { const market = data.markets.find((candidate) => candidate.id === forecast.market_id); return <article key={forecast.id}><span>{data.games.find((game) => game.id === market?.game_id)?.name ?? 'Unknown game'}<small>{market ? metricLabels[market.metric_type] : 'Unknown market'} · {formatDate(forecast.valid_from)}</small></span><b>{formatNumber(forecast.raw_value)}</b></article>; }) : <p>No forecasts yet.</p>}</div><div><strong>Leaderboard</strong>{data.leaderboard.slice(0, 10).map((row) => <article className={row.playerId === playerId ? 'is-current' : undefined} key={row.playerId}><span>#{row.rank} {row.displayName}</span><b>{formatNumber(row.points)} pts</b></article>)}</div></div></section>;
 }
 
 function PlayerControlForms({ data, onCommand, isPending }: {
@@ -297,6 +319,7 @@ function SimulationOverview({ data, gameById, onCommand, isPending, marketValues
       <section className="gm-section gm-controls-panel">
         <div className="gm-section-heading"><div><h2>Simulation controls</h2><p>External email, analytics and webhooks are disabled.</p></div><Status value={data.simulation.status} /></div>
         <dl><div><dt>Random seed</dt><dd>{data.simulation.random_seed}</dd></div><div><dt>Next scheduled forecast</dt><dd>{formatDate(data.nextScheduledAt)}</dd></div><div><dt>Current checkpoint</dt><dd>{data.checkpoints[0]?.name ?? 'None'}</dd></div></dl>
+        <div className="gm-scoring-config"><strong>Active scoring configuration</strong><span>canonical_leave_one_out_v1</span><small>Benchmark: crowd without player · Normalisation: metric percentile · Snapshot cadence: daily · Minimum participants: 2 · Negative points: enabled · Rounding: 2 decimals</small></div>
         <div className="gm-danger-actions"><button disabled={isPending} type="button" onClick={() => onCommand({ action: 'generate_forecasts', simulationId: data.simulation.id, density: 1 }, 'Forecast batch scheduled.')}><Bot size={14} />Generate forecasts</button><button disabled={isPending} type="button" onClick={() => onCommand({ action: 'snapshot', simulationId: data.simulation.id }, 'Snapshots created.')}><Clock3 size={14} />Run snapshot</button><button disabled={isPending} type="button" onClick={() => { const label = window.prompt('External signal label'); if (label) { const raw = window.prompt('Optional numeric signal value', '1'); onCommand({ action: 'signal', simulationId: data.simulation.id, label, value: raw === null || raw === '' ? undefined : Number(raw) }, 'External signal applied.'); } }}><Radio size={14} />Add signal</button><button disabled={isPending} type="button" onClick={() => window.confirm('Reset to the initial checkpoint?') && onCommand({ action: 'reset', simulationId: data.simulation.id }, 'Simulation reset.')}><RotateCcw size={14} />Reset</button><button disabled={isPending} type="button" onClick={() => window.confirm('Archive this simulation?') && onCommand({ action: 'archive', simulationId: data.simulation.id }, 'Simulation archived.')}><Archive size={14} />Archive</button></div>
         <div className="gm-checkpoint-list"><strong>Checkpoints</strong>{data.checkpoints.map((checkpoint) => <div key={checkpoint.id}><span><b>{checkpoint.name}</b><small>{formatDate(checkpoint.simulation_time)}</small></span><button disabled={isPending} type="button" onClick={() => window.confirm(`Restore ${checkpoint.name}? Current mutable state will be replaced.`) && onCommand({ action: 'reset', simulationId: data.simulation.id, checkpointId: checkpoint.id }, `Restored ${checkpoint.name}.`)}>Restore</button><button disabled={isPending} type="button" onClick={() => onCommand({ action: 'clone_checkpoint', simulationId: data.simulation.id, checkpointId: checkpoint.id }, `Cloned ${checkpoint.name}.`)}><Copy size={12} />Clone</button></div>)}</div>
       </section>
@@ -379,9 +402,10 @@ function MarketControlForms({ data, onCommand, isPending }: {
 
 function LeaderboardPanel({ data, compact = false }: { data: NonNullable<ConsoleData['selected']>; compact?: boolean }) {
   const [metric, setMetric] = useState('all');
+  const [view, setView] = useState<'debug' | 'public'>('debug');
   const source = data.leaderboardByMetric[metric] ?? data.leaderboard;
   const rows = compact ? source.slice(0, 10) : source;
-  return <section className="gm-section"><div className="gm-section-heading"><div><h2>Leaderboard {compact ? '(Top 10)' : ''}</h2><p>Canonical leave-one-out competition points.</p></div><div className="gm-section-actions">{!compact ? <select aria-label="Leaderboard metric" value={metric} onChange={(event) => setMetric(event.target.value)}><option value="all">All metrics</option><option value="first_weekend_ccu">CCU</option><option value="first_month_reviews">Reviews</option><option value="full_price_us">Price</option></select> : null}<a href={`/api/internal/game-master?simulationId=${data.simulation.id}&export=csv`}><Download size={14} />CSV</a></div></div><div className="gm-table gm-table--leaderboard"><div className="gm-table-head"><span>Rank</span><span>Player</span><span>Points</span><span>Avg/day</span><span>Markets</span><span>+ / −</span></div>{rows.length ? rows.map((row) => <div className="gm-table-row" key={row.playerId}><strong>#{row.rank}</strong><span><strong>{row.displayName}</strong><small>@{row.username}</small></span><strong>{formatNumber(row.points)}</strong><span>{formatNumber(row.averagePoints)}</span><span>{row.resolvedMarkets}</span><span>{row.positiveMarkets} / {row.negativeMarkets}</span></div>) : <p className="gm-table-empty">Resolve a market with at least two players in a snapshot to generate scores.</p>}</div>{!compact ? <><FormulaComparison data={data} /><ScoreInspector data={data} /></> : null}</section>;
+  return <section className="gm-section"><div className="gm-section-heading"><div><h2>Leaderboard {compact ? '(Top 10)' : ''}</h2><p>Canonical leave-one-out competition points.</p></div><div className="gm-section-actions">{!compact ? <><select aria-label="Leaderboard view" value={view} onChange={(event) => setView(event.target.value as 'debug' | 'public')}><option value="debug">Internal debug table</option><option value="public">Public-player preview</option></select><select aria-label="Leaderboard metric" value={metric} onChange={(event) => setMetric(event.target.value)}><option value="all">All metrics</option><option value="first_weekend_ccu">CCU</option><option value="first_month_reviews">Reviews</option><option value="full_price_us">Price</option></select></> : null}<a href={`/api/internal/game-master?simulationId=${data.simulation.id}&export=csv`}><Download size={14} />CSV</a></div></div>{view === 'public' && !compact ? <div className="gm-public-preview"><header><span>NextHit Market</span><strong>Leaderboard</strong></header>{rows.length ? rows.map((row) => <article key={row.playerId}><b>#{row.rank}</b><span><strong>{row.displayName}</strong><small>@{row.username}</small></span><strong>{formatNumber(row.points)} pts</strong></article>) : <p>No scored players yet.</p>}</div> : <div className="gm-table gm-table--leaderboard"><div className="gm-table-head"><span>Rank</span><span>Player</span><span>Points</span><span>Avg/day</span><span>Markets</span><span>+ / −</span></div>{rows.length ? rows.map((row) => <div className="gm-table-row" key={row.playerId}><strong>#{row.rank}</strong><span><strong>{row.displayName}</strong><small>@{row.username}</small></span><strong>{formatNumber(row.points)}</strong><span>{formatNumber(row.averagePoints)}</span><span>{row.resolvedMarkets}</span><span>{row.positiveMarkets} / {row.negativeMarkets}</span></div>) : <p className="gm-table-empty">Resolve a market with at least two players in a snapshot to generate scores.</p>}</div>}{!compact ? <><FormulaComparison data={data} /><ScoreInspector data={data} /></> : null}</section>;
 }
 
 function SnapshotSummary({ data, gameById }: { data: NonNullable<ConsoleData['selected']>; gameById: Map<string, { id: string; name: string }> }) {
@@ -394,24 +418,34 @@ function FormulaComparison({ data }: { data: NonNullable<ConsoleData['selected']
 }
 
 function ScoreInspector({ data, compact = false }: { data: NonNullable<ConsoleData['selected']>; compact?: boolean }) {
-  const rows = compact ? data.scoreInspector.slice(0, 6) : data.scoreInspector;
+  const [playerId, setPlayerId] = useState('');
+  const [marketId, setMarketId] = useState('');
+  const filtered = data.scoreInspector.filter((row) => (!playerId || row.player_id === playerId) && (!marketId || row.market_id === marketId));
+  const rows = compact ? filtered.slice(0, 6) : filtered;
   const values = rows.map((row) => Number(row.points));
   const total = values.reduce((sum, value) => sum + value, 0);
-  return <section className="gm-section gm-score-inspector"><div className="gm-section-heading"><div><h2>Score Inspector</h2><p>Points = abs(actual − crowd without player) − abs(actual − player).</p></div></div>{!compact && values.length ? <div className="gm-score-summary"><span>Positive <b>{values.filter((value) => value > 0).length}</b></span><span>Negative <b>{values.filter((value) => value < 0).length}</b></span><span>Zero <b>{values.filter((value) => value === 0).length}</b></span><span>Total <b>{formatNumber(total)}</b></span><span>Average <b>{formatNumber(total / values.length)}</b></span><span>Best / worst <b>{formatNumber(Math.max(...values))} / {formatNumber(Math.min(...values))}</b></span></div> : null}<div className="gm-score-table"><div className="gm-table-head"><span>Player / market</span><span>Forecast</span><span>Crowd w/o</span><span>Actual</span><span>User error</span><span>Crowd error</span><span>Points</span></div>{rows.length ? rows.map((row) => <div className="gm-table-row" key={row.id}><span><strong>{row.player}</strong><small>{row.game} · {metricLabels[row.metric] ?? row.metric}</small></span><span>{formatNumber(row.user_percentile)}%</span><span>{formatNumber(row.crowd_without_user_percentile)}%</span><span>{formatNumber(row.actual_percentile)}%</span><span>{formatNumber(row.user_error)}</span><span>{formatNumber(row.crowd_error)}</span><strong className={row.points >= 0 ? 'is-positive' : 'is-negative'}>{row.points >= 0 ? '+' : ''}{formatNumber(row.points)}</strong></div>) : <p className="gm-table-empty">No current score run yet.</p>}</div></section>;
+  return <section className="gm-section gm-score-inspector"><div className="gm-section-heading"><div><h2>Score Inspector</h2><p>Points = abs(actual − crowd without player) − abs(actual − player).</p></div>{!compact ? <div className="gm-section-actions"><select aria-label="Inspect player" value={playerId} onChange={(event) => setPlayerId(event.target.value)}><option value="">All players</option>{data.players.map((player) => <option key={player.id} value={player.id}>@{player.username}</option>)}</select><select aria-label="Inspect market" value={marketId} onChange={(event) => setMarketId(event.target.value)}><option value="">All markets</option>{data.markets.map((market) => <option key={market.id} value={market.id}>{data.games.find((game) => game.id === market.game_id)?.name} · {metricLabels[market.metric_type]}</option>)}</select></div> : null}</div>{!compact && values.length ? <div className="gm-score-summary"><span>Positive <b>{values.filter((value) => value > 0).length}</b></span><span>Negative <b>{values.filter((value) => value < 0).length}</b></span><span>Zero <b>{values.filter((value) => value === 0).length}</b></span><span>Total <b>{formatNumber(total)}</b></span><span>Average <b>{formatNumber(total / values.length)}</b></span><span>Best / worst <b>{formatNumber(Math.max(...values))} / {formatNumber(Math.min(...values))}</b></span></div> : null}<div className="gm-score-table"><div className="gm-table-head"><span>Snapshot / player / market</span><span>Forecast</span><span>Crowd w/o</span><span>Actual</span><span>User error</span><span>Crowd error</span><span>Points</span></div>{rows.length ? rows.map((row) => <div className="gm-table-row" key={row.id}><span><strong>{row.player}</strong><small>{formatDate(row.snapshotTime)} · {row.game} · {metricLabels[row.metric] ?? row.metric}</small></span><span>{formatNumber(row.user_percentile)}%</span><span>{formatNumber(row.crowd_without_user_percentile)}%</span><span>{formatNumber(row.actual_percentile)}%</span><span>{formatNumber(row.user_error)}</span><span>{formatNumber(row.crowd_error)}</span><strong className={row.points >= 0 ? 'is-positive' : 'is-negative'}>{row.points >= 0 ? '+' : ''}{formatNumber(row.points)}</strong></div>) : <p className="gm-table-empty">No score entries match these filters.</p>}</div></section>;
 }
 
 function EventLog({ events, markets, players, gameById, compact = false }: { events: NonNullable<ConsoleData['selected']>['events']; markets: NonNullable<ConsoleData['selected']>['markets']; players: NonNullable<ConsoleData['selected']>['players']; gameById: Map<string, { id: string; name: string }>; compact?: boolean }) {
   const [eventType, setEventType] = useState('');
   const [marketId, setMarketId] = useState('');
   const [playerId, setPlayerId] = useState('');
+  const [actorId, setActorId] = useState('');
+  const [fromTime, setFromTime] = useState('');
+  const [toTime, setToTime] = useState('');
   const [search, setSearch] = useState('');
   const marketMap = new Map(markets.map((market) => [market.id, market]));
   const eventTypes = [...new Set(events.map((event) => event.event_type))].sort();
+  const actorIds = [...new Set(events.map((event) => event.actor_user_id).filter((value): value is string => Boolean(value)))].sort();
   const filtered = compact ? events : events.filter((event) => {
     if (eventType && event.event_type !== eventType) return false;
     if (marketId && event.market_id !== marketId) return false;
     if (playerId && event.player_id !== playerId) return false;
+    if (actorId && event.actor_user_id !== actorId) return false;
+    if (fromTime && new Date(event.event_at) < new Date(fromTime)) return false;
+    if (toTime && new Date(event.event_at) > new Date(toTime)) return false;
     return !search || JSON.stringify(event).toLowerCase().includes(search.toLowerCase());
   });
-  return <section className="gm-section"><div className="gm-section-heading"><div><h2>Lifecycle timeline</h2><p>Immutable event log · newest first</p></div></div>{!compact ? <div className="gm-event-filters"><input aria-label="Search events" placeholder="Search event details" value={search} onChange={(event) => setSearch(event.target.value)} /><select aria-label="Event type" value={eventType} onChange={(event) => setEventType(event.target.value)}><option value="">All event types</option>{eventTypes.map((type) => <option key={type} value={type}>{type}</option>)}</select><select aria-label="Event market" value={marketId} onChange={(event) => setMarketId(event.target.value)}><option value="">All markets</option>{markets.map((market) => <option key={market.id} value={market.id}>{gameById.get(market.game_id)?.name ?? market.metric_type} · {metricLabels[market.metric_type]}</option>)}</select><select aria-label="Event player" value={playerId} onChange={(event) => setPlayerId(event.target.value)}><option value="">All players</option>{players.map((player) => <option key={player.id} value={player.id}>@{player.username}</option>)}</select></div> : null}<div className="gm-event-table"><div className="gm-table-head"><span>Simulation / real time</span><span>Event</span><span>Market</span><span>Details</span></div>{filtered.map((event) => { const market = event.market_id ? marketMap.get(event.market_id) : null; const game = market ? gameById.get(market.game_id) : null; return <div className="gm-table-row" key={event.id}><span><strong>{formatDate(event.event_at)}</strong><small>Recorded {formatDate(event.created_at)}</small></span><strong>{event.event_type}</strong><span>{game?.name ?? '—'}</span><code>{JSON.stringify(event.payload).slice(0, compact ? 90 : 220)}</code></div>; })}</div></section>;
+  return <section className="gm-section"><div className="gm-section-heading"><div><h2>Lifecycle timeline</h2><p>Immutable event log · newest first</p></div></div>{!compact ? <div className="gm-event-filters"><input aria-label="Search events" placeholder="Search event details" value={search} onChange={(event) => setSearch(event.target.value)} /><select aria-label="Event type" value={eventType} onChange={(event) => setEventType(event.target.value)}><option value="">All event types</option>{eventTypes.map((type) => <option key={type} value={type}>{type}</option>)}</select><select aria-label="Event market" value={marketId} onChange={(event) => setMarketId(event.target.value)}><option value="">All markets</option>{markets.map((market) => <option key={market.id} value={market.id}>{gameById.get(market.game_id)?.name ?? market.metric_type} · {metricLabels[market.metric_type]}</option>)}</select><select aria-label="Event player" value={playerId} onChange={(event) => setPlayerId(event.target.value)}><option value="">All players</option>{players.map((player) => <option key={player.id} value={player.id}>@{player.username}</option>)}</select><select aria-label="Event actor" value={actorId} onChange={(event) => setActorId(event.target.value)}><option value="">All actors</option>{actorIds.map((id) => <option key={id} value={id}>{id.slice(0, 8)}…</option>)}</select><label>From<input aria-label="Event time from" type="datetime-local" value={fromTime} onChange={(event) => setFromTime(event.target.value)} /></label><label>To<input aria-label="Event time to" type="datetime-local" value={toTime} onChange={(event) => setToTime(event.target.value)} /></label></div> : null}<div className="gm-event-table"><div className="gm-table-head"><span>Simulation / real time</span><span>Event</span><span>Market</span><span>Details</span></div>{filtered.map((event) => { const market = event.market_id ? marketMap.get(event.market_id) : null; const game = market ? gameById.get(market.game_id) : null; return <div className="gm-table-row" key={event.id}><span><strong>{formatDate(event.event_at)}</strong><small>Recorded {formatDate(event.created_at)}</small></span><strong>{event.event_type}</strong><span>{game?.name ?? '—'}</span><code>{JSON.stringify({ actor: event.actor_user_id, ...event.payload }).slice(0, compact ? 90 : 220)}</code></div>; })}</div></section>;
 }

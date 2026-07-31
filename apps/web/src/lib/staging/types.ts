@@ -38,6 +38,8 @@ export type SimulationCommand =
   | { action: 'run' | 'pause' | 'archive' | 'checkpoint' | 'clone'; simulationId: string }
   | { action: 'reset'; simulationId: string; checkpointId?: string }
   | { action: 'clone_checkpoint'; simulationId: string; checkpointId: string }
+  | { action: 'set_time'; simulationId: string; at: string }
+  | { action: 'advance_to_lock' | 'advance_to_resolution'; simulationId: string }
   | { action: 'advance'; simulationId: string; seconds: number }
   | { action: 'next_event'; simulationId: string }
   | { action: 'generate_players'; simulationId: string; count: number; prefix?: string; behavior?: BotBehavior; skillMin?: number; skillMax?: number; seed?: number; avatarMode?: string }

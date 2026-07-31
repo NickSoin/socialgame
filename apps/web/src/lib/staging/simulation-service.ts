@@ -943,6 +943,7 @@ export async function getGameMasterData(selectedSimulationId?: string | null) {
   });
 
   const gameMap = new Map(games.map((game) => [game.id, game]));
+  const snapshotTimeMap = new Map(snapshotRows.map((snapshot) => [snapshot.id, snapshot.snapshot_at]));
   const scoreInspector = scoreEntries.slice(0, 250).map((entry) => {
     const market = marketMap.get(entry.market_id);
     return {
@@ -950,6 +951,7 @@ export async function getGameMasterData(selectedSimulationId?: string | null) {
       player: playerMap.get(entry.player_id)?.username ?? 'unknown',
       metric: market?.metric_type ?? 'unknown',
       game: market ? gameMap.get(market.game_id)?.name ?? 'Unknown game' : 'Unknown game',
+      snapshotTime: snapshotTimeMap.get(entry.snapshot_id) ?? null,
     };
   });
   const scheduledResult = await client.from('simulation_scheduled_forecasts').select('id,scheduled_at').eq('simulation_id', selectedId).is('processed_at', null).order('scheduled_at').limit(1);
@@ -1058,6 +1060,33 @@ export async function executeSimulationCommand(command: SimulationCommand, princ
     case 'advance': {
       const target = advanceClock(simulation.simulation_time, command.seconds);
       return advanceSimulation(client, simulation, target, principal);
+    }
+    case 'set_time': {
+      const target = new Date(command.at);
+      if (!Number.isFinite(target.getTime())) throw new Error('Simulation time is invalid.');
+      if (target < new Date(simulation.simulation_time)) {
+        throw new Error('Simulation time can only move forward. Restore a checkpoint to revisit earlier state.');
+      }
+      return advanceSimulation(client, simulation, target, principal);
+    }
+    case 'advance_to_lock':
+    case 'advance_to_resolution': {
+      const isLock = command.action === 'advance_to_lock';
+      const column = isLock ? 'lock_at' : 'resolve_after';
+      const status = isLock ? 'open' : 'locked';
+      const next = await client
+        .from('simulation_markets')
+        .select(column)
+        .eq('simulation_id', simulation.id)
+        .eq('status', status)
+        .not(column, 'is', null)
+        .gt(column, simulation.simulation_time)
+        .order(column)
+        .limit(1);
+      assertNoError(next.error, isLock ? 'Could not inspect market locks' : 'Could not inspect market resolutions');
+      const value = rows<Record<string, string>>(next.data)[0]?.[column];
+      if (!value) throw new Error(isLock ? 'There is no future market lock.' : 'There is no future resolution time.');
+      return advanceSimulation(client, simulation, new Date(value), principal);
     }
     case 'next_event': {
       const [scheduled, locks, resolutions] = await Promise.all([
