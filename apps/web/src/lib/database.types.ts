@@ -1197,6 +1197,39 @@ export type Database = {
           },
         ]
       }
+      steam_catalog_exclusions: {
+        Row: {
+          excluded_at: string
+          last_seen_at: string
+          name: string
+          reason: string
+          release_date: string | null
+          source: string
+          steam_app_id: number
+          steam_app_type: string | null
+        }
+        Insert: {
+          excluded_at?: string
+          last_seen_at?: string
+          name: string
+          reason: string
+          release_date?: string | null
+          source?: string
+          steam_app_id: number
+          steam_app_type?: string | null
+        }
+        Update: {
+          excluded_at?: string
+          last_seen_at?: string
+          name?: string
+          reason?: string
+          release_date?: string | null
+          source?: string
+          steam_app_id?: number
+          steam_app_type?: string | null
+        }
+        Relationships: []
+      }
       steam_catalog_sync_runs: {
         Row: {
           current_count: number
@@ -1232,6 +1265,7 @@ export type Database = {
       }
       steam_enrichment_runs: {
         Row: {
+          excluded_count: number
           error_message: string | null
           failed_count: number
           finished_at: string | null
@@ -1249,6 +1283,7 @@ export type Database = {
           worker_id: string
         }
         Insert: {
+          excluded_count?: number
           error_message?: string | null
           failed_count?: number
           finished_at?: string | null
@@ -1266,6 +1301,7 @@ export type Database = {
           worker_id: string
         }
         Update: {
+          excluded_count?: number
           error_message?: string | null
           failed_count?: number
           finished_at?: string | null
@@ -1529,6 +1565,7 @@ export type Database = {
       }
       steam_games: {
         Row: {
+          classification_updated_at: string | null
           first_seen_at: string
           image_url: string
           is_popular_upcoming: boolean
@@ -1548,6 +1585,7 @@ export type Database = {
           source: string
           source_updated_at: string
           steam_app_id: number
+          steam_app_type: string | null
           steam_coming_soon: boolean | null
           steam_data_attempted_at: string | null
           steam_data_updated_at: string | null
@@ -1559,6 +1597,7 @@ export type Database = {
           wishlist_rank: number | null
         }
         Insert: {
+          classification_updated_at?: string | null
           first_seen_at?: string
           image_url: string
           is_popular_upcoming?: boolean
@@ -1578,6 +1617,7 @@ export type Database = {
           source?: string
           source_updated_at: string
           steam_app_id: number
+          steam_app_type?: string | null
           steam_coming_soon?: boolean | null
           steam_data_attempted_at?: string | null
           steam_data_updated_at?: string | null
@@ -1589,6 +1629,7 @@ export type Database = {
           wishlist_rank?: number | null
         }
         Update: {
+          classification_updated_at?: string | null
           first_seen_at?: string
           image_url?: string
           is_popular_upcoming?: boolean
@@ -1608,6 +1649,7 @@ export type Database = {
           source?: string
           source_updated_at?: string
           steam_app_id?: number
+          steam_app_type?: string | null
           steam_coming_soon?: boolean | null
           steam_data_attempted_at?: string | null
           steam_data_updated_at?: string | null

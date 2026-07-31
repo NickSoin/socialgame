@@ -43,12 +43,14 @@ const MAX_STEAM_APP_ID = 999_999_999_999;
 
 export function buildSteamCatalogRows({
   detailsByAppId,
+  excludedAppIds = new Set(),
   existingByAppId = new Map(),
   ledger,
   now,
   sourceUpdatedAt,
 }: {
   detailsByAppId: Map<number, SteamAppDetails>;
+  excludedAppIds?: Set<number>;
   existingByAppId?: Map<number, ExistingSteamCatalogRow>;
   ledger: Record<string, WishlistLedgerEntry>;
   now: string;
@@ -59,7 +61,13 @@ export function buildSteamCatalogRows({
   for (const [rawAppId, rawEntry] of Object.entries(ledger)) {
     const appId = Number(rawAppId);
     const name = cleanName(rawEntry?.name);
-    if (!Number.isInteger(appId) || appId <= 0 || appId > MAX_STEAM_APP_ID || !name) continue;
+    if (
+      !Number.isInteger(appId)
+      || appId <= 0
+      || appId > MAX_STEAM_APP_ID
+      || !name
+      || excludedAppIds.has(appId)
+    ) continue;
 
     const preReleaseRank = cleanRank(rawEntry?.preRelease?.rank);
     const estimate = cleanEstimate(rawEntry?.preRelease?.estimate);

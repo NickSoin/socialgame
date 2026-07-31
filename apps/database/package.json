@@ -10,7 +10,8 @@
     "gen-types-local": "supabase gen types typescript --local > ../web/src/lib/database.types.ts",
     "test-db": "supabase test db",
     "steam:configure-schedule": "node scripts/configure-steam-sync-schedule.mjs",
-    "steam:backfill": "node scripts/backfill-steam-game-data.mjs"
+    "steam:backfill": "node scripts/backfill-steam-game-data.mjs",
+    "steam:prune": "node scripts/prune-steam-catalog.mjs"
   },
   "dependencies": {
     "@supabase/supabase-js": "2.105.4",
