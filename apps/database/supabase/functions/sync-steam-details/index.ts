@@ -7,6 +7,10 @@ import {
   SteamFetchError,
   type SteamAppDetails,
 } from "../_shared/steam-app-details.ts";
+import {
+  getSteamCatalogExclusionReason,
+  type SteamCatalogExclusionReason,
+} from "../_shared/steam-catalog-eligibility.ts";
 import { authorizeScheduledRequest } from "../_shared/scheduled-auth.ts";
 
 const DEFAULT_BATCH_SIZE = 180;
@@ -18,6 +22,7 @@ const SLOW_REFRESH_MS = 8 * 24 * 60 * 60 * 1000;
 
 type SteamGameRow = {
   steam_app_id: number;
+  name: string;
   lifecycle_status: string;
   wishlist_rank: number | null;
   wishlist_estimate: string | null;
@@ -31,7 +36,20 @@ type SteamGameRow = {
   released_at: string | null;
   tags: string[];
   tag_source: string;
+  steam_app_type: string | null;
+  classification_updated_at: string | null;
   [key: string]: unknown;
+};
+
+type SteamCatalogExclusionRow = {
+  steam_app_id: number;
+  name: string;
+  reason: SteamCatalogExclusionReason;
+  steam_app_type: string;
+  release_date: string | null;
+  source: "steam_appdetails";
+  excluded_at: string;
+  last_seen_at: string;
 };
 
 type EnrichmentState = {
@@ -94,9 +112,11 @@ Deno.serve(async (request) => {
     const results = await mapWithConcurrency(candidateRows, DETAILS_CONCURRENCY, (row) =>
       enrichGame(row, stateByKey, refreshedAt)
     );
-    const updatedRows = results.map((result) => result.row);
-    const stateRows = results.flatMap((result) => result.states);
-    const transitions = results.flatMap((result) => result.transition ? [result.transition] : []);
+    const keptResults = results.filter((result) => result.exclusion === null);
+    const exclusions = results.flatMap((result) => result.exclusion ? [result.exclusion] : []);
+    const updatedRows = keptResults.map((result) => result.row);
+    const stateRows = keptResults.flatMap((result) => result.states);
+    const transitions = keptResults.flatMap((result) => result.transition ? [result.transition] : []);
 
     for (let offset = 0; offset < updatedRows.length; offset += UPSERT_BATCH_SIZE) {
       const { error } = await supabase.from("steam_games").upsert(
@@ -116,12 +136,58 @@ Deno.serve(async (request) => {
       const { error } = await supabase.from("steam_game_release_transitions").insert(transitions);
       if (error) throw error;
     }
+    if (exclusions.length) {
+      const excludedIds = exclusions.map((exclusion) => exclusion.steam_app_id);
+      const { data: mediaRows, error: mediaError } = await supabase
+        .from("steam_game_media")
+        .select("storage_path")
+        .in("steam_app_id", excludedIds)
+        .eq("active", true);
+      if (mediaError) throw mediaError;
+      const storagePaths = (mediaRows ?? []).map((media) => media.storage_path);
+      if (storagePaths.length) {
+        const { error: storageError } = await supabase.storage
+          .from("steam-game-media")
+          .remove(storagePaths);
+        if (storageError) throw storageError;
+      }
 
-    const succeeded = results.filter((result) => result.failedComponents === 0).length;
-    const failed = results.filter((result) => result.failedComponents > 0).length;
-    const partial = results.filter((result) => result.states.some((state) => state.status === "partial")).length;
-    const unavailable = results.filter((result) => result.states.some((state) => state.status === "not_available")).length;
-    const released = results.filter((result) => result.row.lifecycle_status === "released").length;
+      const { error: exclusionError } = await supabase
+        .from("steam_catalog_exclusions")
+        .upsert(exclusions, { onConflict: "steam_app_id" });
+      if (exclusionError) throw exclusionError;
+
+      const { error: betsError } = await supabase
+        .from("steam_bets")
+        .delete()
+        .in("steam_app_id", excludedIds);
+      if (betsError) throw betsError;
+
+      const { data: deletedMarkets, error: marketsError } = await supabase
+        .from("steam_forecast_markets")
+        .delete()
+        .in("steam_app_id", excludedIds)
+        .select("id");
+      if (marketsError) throw marketsError;
+
+      const { error: gamesError } = await supabase
+        .from("steam_games")
+        .delete()
+        .in("steam_app_id", excludedIds);
+      if (gamesError) throw gamesError;
+
+      if (deletedMarkets?.length) {
+        const { error: leaderboardError } = await supabase.rpc("rebuild_steam_leaderboard_stats");
+        if (leaderboardError) throw leaderboardError;
+      }
+    }
+
+    const succeeded = keptResults.filter((result) => result.failedComponents === 0).length;
+    const failed = keptResults.filter((result) => result.failedComponents > 0).length;
+    const partial = keptResults.filter((result) => result.states.some((state) => state.status === "partial")).length;
+    const unavailable = keptResults.filter((result) => result.states.some((state) => state.status === "not_available")).length;
+    const released = keptResults.filter((result) => result.row.lifecycle_status === "released").length;
+    const excluded = exclusions.length;
     const stillPending = stateRows.filter((state) => state.status === "pending").length;
     const finalStatus = failed ? (succeeded ? "partial" : "error") : "success";
     const finishedAt = new Date().toISOString();
@@ -135,6 +201,7 @@ Deno.serve(async (request) => {
       failed_count: failed,
       released_count: released,
       still_pending_count: stillPending,
+      excluded_count: excluded,
     }).eq("id", run.id);
 
     return Response.json({
@@ -147,6 +214,7 @@ Deno.serve(async (request) => {
       partialCount: partial,
       unavailableCount: unavailable,
       releasedCount: released,
+      excludedCount: excluded,
       stillPendingCount: stillPending,
       remainingCatalogBackfill: candidateRows.length === limit,
     });
@@ -170,10 +238,20 @@ async function selectCandidates(
 ) {
   if (appId !== null) {
     const { data, error } = await supabase.from("steam_games").select("*")
-      .eq("steam_app_id", appId).eq("is_wishlisted", true).eq("lifecycle_status", "upcoming");
+      .eq("steam_app_id", appId);
     if (error) throw error;
     return (data ?? []) as SteamGameRow[];
   }
+
+  const { data: unclassifiedGames, error: classificationError } = await supabase
+    .from("steam_games")
+    .select("*")
+    .is("classification_updated_at", null)
+    .order("wishlist_rank", { ascending: true, nullsFirst: false })
+    .order("steam_app_id", { ascending: true })
+    .limit(limit);
+  if (classificationError) throw classificationError;
+  if (unclassifiedGames?.length) return unclassifiedGames as SteamGameRow[];
 
   const releaseCutoff = new Date(now.valueOf() - RELEASE_REFRESH_MS).toISOString();
   const slowCutoff = new Date(now.valueOf() - SLOW_REFRESH_MS).toISOString();
@@ -229,6 +307,26 @@ async function enrichGame(
 
   try {
     details = await fetchSteamAppDetails(original.steam_app_id);
+    const exclusionReason = getSteamCatalogExclusionReason(details);
+    if (exclusionReason) {
+      const exclusion: SteamCatalogExclusionRow = {
+        steam_app_id: original.steam_app_id,
+        name: original.name,
+        reason: exclusionReason,
+        steam_app_type: details.appType,
+        release_date: details.releaseDate ?? original.release_date,
+        source: "steam_appdetails",
+        excluded_at: refreshedAt,
+        last_seen_at: refreshedAt,
+      };
+      return {
+        row,
+        states: [],
+        transition: null,
+        failedComponents: 0,
+        exclusion,
+      };
+    }
     if (details.releaseInvalid) {
       states.push(errorState(original.steam_app_id, "release", previousState(stateByKey, original.steam_app_id, "release"), refreshedAt,
         new SteamFetchError("invalid_release_date", `Invalid Steam release date: ${details.releaseText ?? "empty"}`)));
@@ -308,7 +406,7 @@ async function enrichGame(
     failedComponents += 1;
   }
 
-  return { row, states, transition, failedComponents };
+  return { row, states, transition, failedComponents, exclusion: null };
 }
 
 function previousState(states: Map<string, EnrichmentState>, appId: number, component: EnrichmentState["component"]) {

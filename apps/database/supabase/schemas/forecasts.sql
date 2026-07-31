@@ -95,6 +95,8 @@ CREATE TABLE public.steam_games (
   tag_source text NOT NULL DEFAULT 'none',
   tags_updated_at timestamptz,
   media_updated_at timestamptz,
+  steam_app_type text,
+  classification_updated_at timestamptz,
   CONSTRAINT steam_games_app_id_check CHECK (steam_app_id > 0),
   CONSTRAINT steam_games_name_check CHECK (char_length(name) BETWEEN 1 AND 250),
   CONSTRAINT steam_games_image_url_check CHECK (image_url ~ '^https://'),
@@ -129,7 +131,36 @@ CREATE TABLE public.steam_games (
   CONSTRAINT steam_games_tag_source_check CHECK (
     tag_source IN ('steam_store_tags', 'appdetails_genres_fallback', 'none')
   ),
-  CONSTRAINT steam_games_tags_limit_check CHECK (cardinality(tags) <= 5)
+  CONSTRAINT steam_games_tags_limit_check CHECK (cardinality(tags) <= 5),
+  CONSTRAINT steam_games_app_type_check CHECK (
+    steam_app_type IS NULL OR steam_app_type ~ '^[a-z0-9_]{1,40}$'
+  ),
+  CONSTRAINT steam_games_classification_check CHECK (
+    (steam_app_type IS NULL AND classification_updated_at IS NULL)
+    OR (steam_app_type IS NOT NULL AND classification_updated_at IS NOT NULL)
+  )
+);
+
+CREATE TABLE public.steam_catalog_exclusions (
+  steam_app_id bigint PRIMARY KEY,
+  name text NOT NULL,
+  reason text NOT NULL,
+  steam_app_type text,
+  release_date date,
+  source text NOT NULL DEFAULT 'steam_appdetails',
+  excluded_at timestamptz NOT NULL DEFAULT now(),
+  last_seen_at timestamptz NOT NULL DEFAULT now(),
+  CONSTRAINT steam_catalog_exclusions_app_id_check CHECK (steam_app_id > 0),
+  CONSTRAINT steam_catalog_exclusions_name_check CHECK (char_length(name) BETWEEN 1 AND 250),
+  CONSTRAINT steam_catalog_exclusions_reason_check CHECK (
+    reason IN ('released_before_cutoff', 'non_game')
+  ),
+  CONSTRAINT steam_catalog_exclusions_app_type_check CHECK (
+    steam_app_type IS NULL OR steam_app_type ~ '^[a-z0-9_]{1,40}$'
+  ),
+  CONSTRAINT steam_catalog_exclusions_source_check CHECK (
+    source IN ('steam_appdetails', 'catalog_cleanup')
+  )
 );
 
 CREATE TABLE public.steam_catalog_sync_runs (
@@ -258,6 +289,7 @@ CREATE TABLE public.steam_enrichment_runs (
   skipped_unchanged_count integer NOT NULL DEFAULT 0,
   still_pending_count integer NOT NULL DEFAULT 0,
   error_message text,
+  excluded_count integer NOT NULL DEFAULT 0,
   CONSTRAINT steam_enrichment_runs_status_check CHECK (
     status IN ('running', 'success', 'partial', 'error', 'already_running')
   ),
@@ -265,6 +297,7 @@ CREATE TABLE public.steam_enrichment_runs (
     selected_count >= 0 AND succeeded_count >= 0 AND partial_count >= 0
     AND unavailable_count >= 0 AND failed_count >= 0 AND released_count >= 0
     AND uploaded_count >= 0 AND skipped_unchanged_count >= 0 AND still_pending_count >= 0
+    AND excluded_count >= 0
   ),
   CONSTRAINT steam_enrichment_runs_completion_check CHECK (
     (status = 'running' AND finished_at IS NULL)
@@ -317,6 +350,9 @@ CREATE INDEX steam_games_popular_release_rank_idx
 CREATE INDEX steam_catalog_sync_runs_started_idx
   ON public.steam_catalog_sync_runs (started_at DESC);
 
+CREATE INDEX steam_catalog_exclusions_reason_idx
+  ON public.steam_catalog_exclusions (reason, excluded_at DESC);
+
 CREATE UNIQUE INDEX steam_game_media_active_position_idx
   ON public.steam_game_media (steam_app_id, kind, position)
   WHERE active = true;
@@ -361,6 +397,7 @@ ALTER TABLE public.forecast_targets ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.numeric_predictions ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.steam_bets ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.steam_games ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.steam_catalog_exclusions ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.steam_catalog_sync_runs ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.steam_game_enrichment_state ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.steam_game_media ENABLE ROW LEVEL SECURITY;
@@ -825,6 +862,7 @@ REVOKE ALL ON TABLE public.forecast_targets FROM PUBLIC;
 REVOKE ALL ON TABLE public.numeric_predictions FROM PUBLIC;
 REVOKE ALL ON TABLE public.steam_bets FROM PUBLIC;
 REVOKE ALL ON TABLE public.steam_games FROM PUBLIC;
+REVOKE ALL ON TABLE public.steam_catalog_exclusions FROM PUBLIC, anon, authenticated;
 REVOKE ALL ON TABLE public.steam_catalog_sync_runs FROM PUBLIC;
 REVOKE ALL ON TABLE public.steam_game_enrichment_state FROM PUBLIC, anon, authenticated;
 REVOKE ALL ON TABLE public.steam_game_media FROM PUBLIC, anon, authenticated;
@@ -842,6 +880,7 @@ GRANT ALL ON TABLE public.forecast_targets TO service_role;
 GRANT ALL ON TABLE public.numeric_predictions TO service_role;
 GRANT ALL ON TABLE public.steam_bets TO service_role;
 GRANT ALL ON TABLE public.steam_games TO service_role;
+GRANT ALL ON TABLE public.steam_catalog_exclusions TO service_role;
 GRANT ALL ON TABLE public.steam_catalog_sync_runs TO service_role;
 GRANT ALL ON TABLE public.steam_game_enrichment_state TO service_role;
 GRANT ALL ON TABLE public.steam_game_media TO service_role;
@@ -1529,7 +1568,8 @@ AS $$
 DECLARE
   rebuilt_count integer;
 BEGIN
-  DELETE FROM public.steam_user_leaderboard_stats;
+  DELETE FROM public.steam_user_leaderboard_stats
+  WHERE user_id IS NOT NULL;
 
   WITH current_entries AS (
     SELECT entry.*, market.metric_type, snapshot.snapshot_date
