@@ -1,4 +1,5 @@
 import { normalizeSteamReleaseMetadata, type SteamReleasePrecision } from "./steam-release-date.ts";
+import { normalizeSteamAppType } from "./steam-catalog-eligibility.ts";
 import { extractSteamStoreTags, normalizeSteamGenres, type SteamStoreTagExtraction } from "./steam-tags.ts";
 import {
   selectSteamScreenshots,
@@ -9,6 +10,7 @@ import {
 const TRUSTED_STORE_HOSTS = new Set(["store.steampowered.com"]);
 
 export type SteamAppDetails = {
+  appType: string;
   imageUrl: string;
   releaseDate: string | null;
   releaseLabel: string;
@@ -46,6 +48,7 @@ export async function fetchSteamAppDetails(appId: number): Promise<SteamAppDetai
   const payload = await fetchJsonWithRetry<Record<string, {
     success?: boolean;
     data?: {
+      type?: unknown;
       header_image?: unknown;
       genres?: unknown;
       screenshots?: unknown;
@@ -56,12 +59,17 @@ export async function fetchSteamAppDetails(appId: number): Promise<SteamAppDetai
   if (!app?.success || !app.data) {
     throw new SteamFetchError("app_not_available", `Steam appdetails has no data for app ${appId}`, 404);
   }
+  const appType = normalizeSteamAppType(app.data.type);
+  if (!appType) {
+    throw new SteamFetchError("missing_app_type", `Steam appdetails has no valid type for app ${appId}`);
+  }
 
   const release = normalizeSteamReleaseMetadata(app.data.release_date?.date);
   const comingSoon = typeof app.data.release_date?.coming_soon === "boolean"
     ? app.data.release_date.coming_soon
     : null;
   return {
+    appType,
     imageUrl: trustedSteamImageUrl(app.data.header_image) ?? fallbackSteamHeaderImage(appId),
     releaseDate: release.exactDate,
     releaseLabel: release.label,
@@ -105,6 +113,8 @@ export function applySteamAppDetails<
   release_precision: SteamReleasePrecision;
   steam_coming_soon: boolean | null;
   release_metadata_updated_at: string;
+  steam_app_type: string;
+  classification_updated_at: string;
   tags: string[];
   tag_source: string;
   steam_data_updated_at: string;
@@ -122,6 +132,8 @@ export function applySteamAppDetails<
     release_precision: details.releasePrecision,
     steam_coming_soon: details.comingSoon,
     release_metadata_updated_at: refreshedAt,
+    steam_app_type: details.appType,
+    classification_updated_at: refreshedAt,
     tags: keepStoreTags ? row.tags ?? [] : fallbackTags,
     tag_source: keepStoreTags
       ? "steam_store_tags"

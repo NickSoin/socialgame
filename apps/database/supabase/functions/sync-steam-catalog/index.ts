@@ -127,11 +127,15 @@ Deno.serve(async (request) => {
 
     // Catalog membership/rank comes from TopWishlisted. Steam-owned metadata is
     // preserved here and refreshed only by the Steam details/popular syncs.
-    const existingByAppId = await fetchExistingCatalog(supabase);
+    const [existingByAppId, excludedAppIds] = await Promise.all([
+      fetchExistingCatalog(supabase),
+      fetchExcludedAppIds(supabase),
+    ]);
 
     const now = new Date().toISOString();
     const rows = buildSteamCatalogRows({
       detailsByAppId: new Map(),
+      excludedAppIds,
       existingByAppId,
       ledger: currentLedger,
       now,
@@ -204,6 +208,7 @@ Deno.serve(async (request) => {
       sourceUpdatedAt,
       currentCount,
       releasedCount,
+      excludedCount: excludedAppIds.size,
       preservedSteamDetailsCount: existingByAppId.size,
     });
   } catch (error) {
@@ -241,6 +246,24 @@ async function fetchExistingCatalog(
   }
 
   return new Map(rows.map((row) => [Number(row.steam_app_id), row]));
+}
+
+async function fetchExcludedAppIds(
+  supabase: ReturnType<typeof createClient>,
+): Promise<Set<number>> {
+  const appIds = new Set<number>();
+
+  for (let offset = 0; ; offset += 1000) {
+    const { data, error } = await supabase
+      .from('steam_catalog_exclusions')
+      .select('steam_app_id')
+      .range(offset, offset + 999);
+    if (error) throw error;
+    for (const row of data ?? []) appIds.add(Number(row.steam_app_id));
+    if ((data?.length ?? 0) < 1000) break;
+  }
+
+  return appIds;
 }
 
 async function fetchCurrentWishlist(sourceUpdatedAt: string, shardCount: number) {
