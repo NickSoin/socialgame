@@ -124,6 +124,25 @@ export async function getSteamCatalogGamesByIds(appIds: number[]) {
   return (data ?? []).map(toSteamUpcomingGame);
 }
 
+export async function getSteamCatalogGamesByIdsAnyLifecycle(appIds: number[]) {
+  const uniqueAppIds = [...new Set(appIds)].filter(Number.isInteger).slice(0, 500);
+  if (!uniqueAppIds.length) return [];
+
+  const supabase = createPublicCatalogClient();
+  const { data, error } = await supabase
+    .from("steam_games")
+    .select(CATALOG_FIELDS)
+    .eq("is_wishlisted", true)
+    .in("steam_app_id", uniqueAppIds);
+
+  if (error) {
+    console.error("Could not load staging games from the Steam wishlist catalog.", error);
+    return [];
+  }
+
+  return (data ?? []).map(toSteamUpcomingGame);
+}
+
 export async function searchSteamCatalogGames(
   query: string,
   limit = 20,

@@ -62,3 +62,25 @@ export type SimulationCommand =
   | { action: 'impersonate'; simulationId: string; playerId: string }
   | { action: 'end_impersonate'; simulationId: string; playerId: string }
   | { action: 'import'; payload: unknown };
+
+export type StagingWorkspaceCommand =
+  | { action: 'add_player'; simulationId: string; displayName: string }
+  | { action: 'delete_player'; simulationId: string; playerId: string }
+  | {
+      action: 'place_forecast';
+      simulationId: string;
+      steamAppId: number;
+      playerId: string;
+      metricType: StagingMetric;
+      rawValue: number;
+    }
+  | {
+      action: 'batch_forecasts';
+      simulationId: string;
+      steamAppId: number;
+      metricType: StagingMetric;
+      count: number;
+      minimum: number;
+      maximum: number;
+    }
+  | { action: 'resolve_game'; simulationId: string; steamAppId: number };

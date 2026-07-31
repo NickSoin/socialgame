@@ -41,18 +41,15 @@ The staging database composes the production declarative schema with `apps/stagi
 - Every protected request rechecks the database role. Revocation therefore applies on the next request without waiting for a token refresh.
 - Denied access attempts are appended to the role audit log.
 
-## Running a simulation
+## Running gameplay staging
 
-1. Open `/internal/game-master` and create one of the ten deterministic presets with a seed.
-2. Use **Run/Pause**, `+1 hour`, `+1 day`, `+7 days`, **Set time**, **Next event**, **Next lock**, or **Next resolution**. Time is isolated per simulation and only moves forward.
-3. Generate synthetic players and forecast batches. Synthetic players never become Auth users.
-4. Create a game with its three standard markets, or add an individual market. Submit a manual forecast from the Players tab when an exact edge case is needed.
-5. Lock a market manually or advance past its lock time. Run snapshots manually or let clock advancement create crossed-midnight snapshots.
-6. Resolve a locked market. A correction creates a new result and score-run version; previous versions remain immutable. Void requires a reason.
-7. Inspect the canonical leave-one-out result in **Leaderboard** and **Score Inspector**. Formula Comparison is read-only and never changes canonical points.
-8. Add an external signal to record a scenario event without calling any real external service.
-9. Save checkpoints, restore or clone any selected checkpoint, or clone the exact current state. Export/import uses `nexthit-simulation-v1` JSON with all identifiers safely remapped; the downloadable JSON also includes the immutable event log, checkpoint manifest, and leaderboard. Separate CSV downloads cover forecasts, snapshots, score entries, and the canonical leaderboard.
-10. Player Preview creates a persistent simulation banner and a seeded-player product preview. The designer can submit or edit that player's forecast, inspect **My Forecasts**, and view the simulation leaderboard without impersonating a real Auth user.
+`/internal/game-master` is the normal NextHit Market product UI backed by an isolated, persistent staging workspace. It has no production side effects.
+
+1. Open the artificial-user menu below the profile icon. Add, delete, or switch the active player there.
+2. Enter forecasts in the normal game cards. The active artificial player owns those forecasts.
+3. Use the blue handle to the right of any forecast field to open **Game manipulation**. It can submit a value for any existing artificial player or create a randomized batch in a chosen range. Every batch forecast gets its own artificial player, so repeated batches are unbounded.
+4. Use **Resolve** in the small panel to the right of a game card. All three markets receive a final snapshot, lock, resolve, and score. The game leaves Trending/Popular upcoming, appears under Completed, and the staging leaderboard is recalculated.
+5. Use Trending, Popular upcoming, Completed, My forecasts, and search exactly as in the product UI. The header Bets and Points values always belong to the currently selected artificial player.
 
 ## Required release verification
 
@@ -74,7 +71,7 @@ $env:RUN_STAGING_INTEGRATION='true'
 pnpm --filter web exec vitest run --root src src/lib/staging/simulation-service.integration.test.ts
 ```
 
-The browser release checklist is: unauthenticated redirect, verified root login, create a preset, advance time, inspect forecasts/snapshots, lock and resolve, inspect leaderboard and Score Inspector, correct the result, clone, export/import, role grant, role revoke, immediate denied access, and `X-Robots-Tag: noindex, nofollow` on internal APIs.
+The browser release checklist is: unauthenticated redirect, verified root login, add/switch/delete an artificial player, submit forecasts for at least two players, create a randomized batch, resolve a game, verify it moved to Completed, verify leaderboard movement, role grant, role revoke, immediate denied access, and `X-Robots-Tag: noindex, nofollow` on internal APIs.
 
 ## Deployment
 
