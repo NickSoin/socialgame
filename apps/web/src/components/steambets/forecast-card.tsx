@@ -95,13 +95,32 @@ function ForecastField({
         </div>
       </div>
       {mode === "editing" && (
-        <button
-          className="sb-bet-approve"
-          disabled={!isValid || status === "executing"}
-          type="submit"
-        >
-          {status === "executing" ? "Saving…" : "Approve"}
-        </button>
+        <div className="sb-bet-actions">
+          <button
+            aria-label={`Confirm ${target.label} prediction`}
+            className="sb-bet-action is-confirm"
+            disabled={!isValid || status === "executing"}
+            title="Confirm prediction"
+            type="submit"
+          >
+            ✓
+          </button>
+          <button
+            aria-label={`Cancel ${target.label} prediction`}
+            className="sb-bet-action is-cancel"
+            disabled={status === "executing"}
+            title="Cancel"
+            type="button"
+            onClick={() => {
+              submittedValue.current = null;
+              setDraft("");
+              setErrorMessage("");
+              setMode("idle");
+            }}
+          >
+            ×
+          </button>
+        </div>
       )}
       {errorMessage && (
         <p className="sb-forecast-error" aria-live="polite">
@@ -131,7 +150,28 @@ export function ForecastCard({
       />
       <div className="sb-game-card__content">
         <header className="sb-game-card__header">
-          <h2>{game.name}</h2>
+          <div className="sb-game-card__title">
+            <div className="sb-game-card__name">
+              <a
+                aria-label={`Open ${game.name} on Steam`}
+                className="sb-steam-store-link"
+                href={`https://store.steampowered.com/app/${game.appId}/`}
+                rel="noreferrer"
+                target="_blank"
+                title="Open on Steam"
+              >
+                {/* eslint-disable-next-line @next/next/no-img-element */}
+                <img
+                  alt=""
+                  height="16"
+                  src="https://store.steampowered.com/favicon.ico"
+                  width="16"
+                />
+              </a>
+              <h2>{game.name}</h2>
+            </div>
+            {game.tags.length > 0 && <p className="sb-game-card__tags">{game.tags.join(" · ")}</p>}
+          </div>
           <time dateTime={game.releaseDate}>{game.releaseLabel}</time>
         </header>
         <div className="sb-game-card__targets">

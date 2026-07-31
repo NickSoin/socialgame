@@ -8,6 +8,7 @@ const game = (appId: number, name: string): SteamUpcomingGame => ({
   releaseDate: "2026-08-01",
   releaseLabel: "Aug 1",
   imageUrl: `https://example.com/${appId}.jpg`,
+  tags: [],
   wishlistRank: null,
   targets: STEAM_BET_TARGETS.map((target) => ({
     ...target,

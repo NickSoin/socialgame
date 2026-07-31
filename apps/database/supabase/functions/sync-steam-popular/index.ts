@@ -5,6 +5,7 @@ import {
   normalizeSteamReleaseDate,
 } from "../_shared/steam-release-date.ts";
 import { parseSteamPopularUpcoming } from "../_shared/steam-popular-upcoming.ts";
+import { normalizeSteamGenres } from "../_shared/steam-tags.ts";
 
 const PAGE_SIZE = 100;
 const PAGE_COUNT = 2;
@@ -104,7 +105,7 @@ Deno.serve(async (request) => {
       DETAILS_CONCURRENCY,
       async (entry) => {
         const catalogRow = catalogById.get(entry.appId)!;
-        const details = await fetchSteamAppReleaseDate(entry.appId);
+        const details = await fetchSteamAppDetails(entry.appId);
         const releaseDate = details.fetched
           ? details.releaseDate
           : normalizeSteamReleaseDate(entry.releaseText);
@@ -119,6 +120,7 @@ Deno.serve(async (request) => {
           popular_upcoming_position: released ? null : entry.position,
           release_date: releaseDate,
           release_label: formatSteamReleaseLabel(releaseDate),
+          tags: details.tags.length ? details.tags : catalogRow.tags,
           released_at: released
             ? releaseDate
               ? `${releaseDate}T00:00:00.000Z`
@@ -157,7 +159,7 @@ Deno.serve(async (request) => {
   }
 });
 
-async function fetchSteamAppReleaseDate(appId: number) {
+async function fetchSteamAppDetails(appId: number) {
   const url = new URL("https://store.steampowered.com/api/appdetails");
   url.searchParams.set("appids", String(appId));
   url.searchParams.set("cc", "us");
@@ -166,20 +168,24 @@ async function fetchSteamAppReleaseDate(appId: number) {
   try {
     const payload = await fetchJsonWithRetry<Record<string, {
       success?: boolean;
-      data?: { release_date?: { coming_soon?: unknown; date?: unknown } };
+      data?: {
+        genres?: unknown;
+        release_date?: { coming_soon?: unknown; date?: unknown };
+      };
     }>>(url.toString(), 2);
     const app = payload[String(appId)];
     if (!app?.success || !app.data) {
-      return { fetched: false, releaseDate: null, released: false };
+      return { fetched: false, releaseDate: null, released: false, tags: [] };
     }
     return {
       fetched: true,
       releaseDate: normalizeSteamReleaseDate(app.data.release_date?.date),
       released: app.data.release_date?.coming_soon === false,
+      tags: normalizeSteamGenres(app.data.genres),
     };
   } catch (error) {
     console.warn(`Could not refresh Steam release date for app ${appId}`, error);
-    return { fetched: false, releaseDate: null, released: false };
+    return { fetched: false, releaseDate: null, released: false, tags: [] };
   }
 }
 

@@ -10,6 +10,7 @@ describe("toSteamUpcomingGame", () => {
         "https://shared.fastly.steamstatic.com/store_item_assets/steam/apps/388860/header.jpg",
       release_date: "2027-03-15",
       release_label: "March 15",
+      tags: ["Action", "RPG"],
       wishlist_rank: 12,
     });
 
@@ -20,6 +21,7 @@ describe("toSteamUpcomingGame", () => {
       releaseLabel: "March 15",
       wishlistRank: 12,
       imageUrl: "/api/steam-artwork/388860",
+      tags: ["Action", "RPG"],
     });
     expect(game.targets).toHaveLength(3);
   });
@@ -32,6 +34,7 @@ describe("toSteamUpcomingGame", () => {
         "https://shared.fastly.steamstatic.com/store_item_assets/steam/apps/17750/header.jpg",
       release_date: null,
       release_label: "TBA",
+      tags: [],
       wishlist_rank: null,
     });
 

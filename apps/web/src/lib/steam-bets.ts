@@ -24,6 +24,7 @@ export type SteamUpcomingGame = {
   releaseDate: string;
   releaseLabel: string;
   imageUrl: string;
+  tags: string[];
   wishlistRank: number | null;
   targets: SteamBetTarget[];
 };

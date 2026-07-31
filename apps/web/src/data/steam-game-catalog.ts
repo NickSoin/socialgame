@@ -5,7 +5,7 @@ import type { SteamUpcomingGame } from "@/lib/steam-bets";
 import { toSteamUpcomingGame } from "@/lib/steam-game-catalog";
 
 const CATALOG_FIELDS =
-  "steam_app_id,name,image_url,release_date,release_label,wishlist_rank" as const;
+  "steam_app_id,name,image_url,release_date,release_label,tags,wishlist_rank" as const;
 
 function createPublicCatalogClient() {
   return createClient<Database>(

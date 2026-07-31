@@ -9,6 +9,7 @@ import {
   type WishlistLedgerEntry,
 } from './catalog.ts';
 import { normalizeSteamReleaseDate } from '../_shared/steam-release-date.ts';
+import { normalizeSteamGenres } from '../_shared/steam-tags.ts';
 
 const SOURCE_META_URL =
   'https://nicksoin.github.io/SteamTopWishlistsRank/v2/meta.json';
@@ -232,6 +233,7 @@ async function fetchSteamAppDetails(appId: number): Promise<SteamAppDetails | nu
       success?: boolean;
       data?: {
         header_image?: unknown;
+        genres?: unknown;
         release_date?: { coming_soon?: unknown; date?: unknown };
       };
     }>>(url.toString(), 2);
@@ -246,6 +248,7 @@ async function fetchSteamAppDetails(appId: number): Promise<SteamAppDetails | nu
       releaseDate,
       releaseLabel: releaseDate ? formatReleaseLabel(releaseDate) : 'TBA',
       released: app.data.release_date?.coming_soon === false,
+      tags: normalizeSteamGenres(app.data.genres),
     };
   } catch (error) {
     console.warn(`Could not enrich Steam app ${appId}`, error);

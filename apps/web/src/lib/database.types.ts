@@ -458,6 +458,7 @@ export type Database = {
           source_updated_at: string
           steam_app_id: number
           steam_data_updated_at: string | null
+          tags: string[]
           updated_at: string
           wishlist_estimate: string | null
           wishlist_rank: number | null
@@ -479,6 +480,7 @@ export type Database = {
           source_updated_at: string
           steam_app_id: number
           steam_data_updated_at?: string | null
+          tags?: string[]
           updated_at?: string
           wishlist_estimate?: string | null
           wishlist_rank?: number | null
@@ -500,6 +502,7 @@ export type Database = {
           source_updated_at?: string
           steam_app_id?: number
           steam_data_updated_at?: string | null
+          tags?: string[]
           updated_at?: string
           wishlist_estimate?: string | null
           wishlist_rank?: number | null

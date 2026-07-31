@@ -86,6 +86,7 @@ CREATE TABLE public.steam_games (
   is_popular_upcoming boolean NOT NULL DEFAULT false,
   popular_upcoming_position integer,
   steam_data_updated_at timestamptz,
+  tags text[] NOT NULL DEFAULT '{}'::text[],
   CONSTRAINT steam_games_app_id_check CHECK (steam_app_id > 0),
   CONSTRAINT steam_games_name_check CHECK (char_length(name) BETWEEN 1 AND 250),
   CONSTRAINT steam_games_image_url_check CHECK (image_url ~ '^https://'),

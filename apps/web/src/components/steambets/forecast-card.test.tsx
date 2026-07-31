@@ -19,6 +19,7 @@ const game: SteamUpcomingGame = {
   name: "Input Limit Test",
   releaseDate: "2026-08-01",
   releaseLabel: "August 1",
+  tags: ["Action", "RPG", "Singleplayer"],
   wishlistRank: 77,
   targets: STEAM_BET_TARGETS.map((target) => ({
     ...target,
@@ -42,6 +43,10 @@ describe("ForecastCard", () => {
     expect(screen.getAllByText("7M Vol.")).toHaveLength(3);
     expect(screen.getByText("August 1").getAttribute("dateTime")).toBe("2026-08-01");
     expect(screen.getByLabelText("Top wishlisted rank 77").textContent).toBe("#77");
+    expect(screen.getByText("Action · RPG · Singleplayer")).toBeTruthy();
+    expect(
+      screen.getByRole("link", { name: "Open Input Limit Test on Steam" }).getAttribute("href"),
+    ).toBe("https://store.steampowered.com/app/42/");
   });
 
   it("falls back to the Steam artwork resolver when a stored banner is missing", () => {
@@ -112,12 +117,33 @@ describe("ForecastCard", () => {
     });
     fireEvent.focus(ccu);
     fireEvent.change(ccu, { target: { value: "12345678" } });
-    fireEvent.click(screen.getAllByRole("button", { name: "Approve" })[0]);
+    fireEvent.click(
+      screen.getByRole("button", { name: "Confirm First weekend peak CCU prediction" }),
+    );
 
     expect(mocks.execute).toHaveBeenCalledWith({
       steamAppId: 42,
       targetKey: "first_weekend_ccu",
       value: "1234567",
     });
+  });
+
+  it("cancels a draft without submitting it", () => {
+    render(<ForecastCard game={game} isAuthenticated />);
+
+    const ccu = screen.getByRole("textbox", {
+      name: "First weekend peak CCU for Input Limit Test",
+    }) as HTMLInputElement;
+    fireEvent.focus(ccu);
+    fireEvent.change(ccu, { target: { value: "9000" } });
+    fireEvent.click(
+      screen.getByRole("button", { name: "Cancel First weekend peak CCU prediction" }),
+    );
+
+    expect(ccu.value).toBe("");
+    expect(mocks.execute).not.toHaveBeenCalled();
+    expect(
+      screen.queryByRole("button", { name: "Confirm First weekend peak CCU prediction" }),
+    ).toBeNull();
   });
 });

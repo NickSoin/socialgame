@@ -1,7 +1,8 @@
 "use client";
 
-import { useEffect, useRef } from "react";
+import { useEffect, useRef, useState } from "react";
 import { getSteamGameHeroUrl, STEAM_GAME_HERO_ASPECT_RATIO } from "@/lib/steam-game-hero";
+import { getSteamHoverPreviews } from "@/lib/steam-hover-previews";
 
 function ensureGameHero(image: HTMLImageElement, appId: number, loadEventReceived = false) {
   if (!loadEventReceived && !image.complete) return;
@@ -31,9 +32,16 @@ export function GameHero({
   variant?: "card" | "search";
 }) {
   const artworkRef = useRef<HTMLImageElement>(null);
+  const [isPreviewing, setIsPreviewing] = useState(false);
+  const [previewIndex, setPreviewIndex] = useState(0);
   const imageUrl = getSteamGameHeroUrl(appId);
+  const previews = variant === "card" ? getSteamHoverPreviews(appId) : [];
+  const previewUrl = previews[previewIndex];
+  const isShowingPreview = isPreviewing && Boolean(previewUrl);
 
   useEffect(() => {
+    if (isShowingPreview) return;
+
     const image = artworkRef.current;
     if (!image) return;
 
@@ -45,10 +53,31 @@ export function GameHero({
       image.removeEventListener("load", checkArtwork);
       image.removeEventListener("error", checkArtwork);
     };
-  }, [appId]);
+  }, [appId, isShowingPreview]);
+
+  useEffect(() => {
+    if (!isPreviewing || previews.length < 2) return;
+
+    const interval = window.setInterval(() => {
+      setPreviewIndex((current) => (current + 1) % previews.length);
+    }, 1000);
+
+    return () => window.clearInterval(interval);
+  }, [isPreviewing, previews.length]);
 
   return (
-    <div className={`sb-game-hero is-${variant}`}>
+    <div
+      className={`sb-game-hero is-${variant}${isShowingPreview ? " is-previewing" : ""}`}
+      onMouseEnter={() => {
+        if (!previews.length) return;
+        setPreviewIndex(0);
+        setIsPreviewing(true);
+      }}
+      onMouseLeave={() => {
+        setIsPreviewing(false);
+        setPreviewIndex(0);
+      }}
+    >
       {/* eslint-disable-next-line @next/next/no-img-element */}
       <img
         alt={variant === "card" ? `${name} artwork` : ""}
@@ -56,10 +85,19 @@ export function GameHero({
         fetchPriority={priority ? "high" : "auto"}
         height={215}
         loading={priority ? "eager" : "lazy"}
-        onError={(event) => ensureGameHero(event.currentTarget, appId, true)}
-        onLoad={(event) => ensureGameHero(event.currentTarget, appId, true)}
+        onError={(event) => {
+          if (isShowingPreview) {
+            setIsPreviewing(false);
+            setPreviewIndex(0);
+            return;
+          }
+          ensureGameHero(event.currentTarget, appId, true);
+        }}
+        onLoad={(event) => {
+          if (!isShowingPreview) ensureGameHero(event.currentTarget, appId, true);
+        }}
         ref={artworkRef}
-        src={imageUrl}
+        src={isShowingPreview ? previewUrl : imageUrl}
         width={460}
       />
       {wishlistRank !== null && (

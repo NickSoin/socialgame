@@ -7,6 +7,7 @@ export type SteamGameCatalogRecord = {
   image_url: string;
   release_date: string | null;
   release_label: string;
+  tags: string[];
   wishlist_rank: number | null;
 };
 
@@ -17,6 +18,7 @@ export function toSteamUpcomingGame(row: SteamGameCatalogRecord): SteamUpcomingG
     imageUrl: getSteamGameHeroUrl(Number(row.steam_app_id)),
     releaseDate: row.release_date ? `${row.release_date}T00:00:00.000Z` : "TBA",
     releaseLabel: row.release_label || "TBA",
+    tags: row.tags.filter((tag) => tag.trim()).slice(0, 6),
     wishlistRank: row.wishlist_rank,
     targets: STEAM_BET_TARGETS.map((target) => ({
       ...target,

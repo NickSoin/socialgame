@@ -13,6 +13,7 @@ export type SteamAppDetails = {
   releaseDate: string | null;
   releaseLabel: string;
   released: boolean;
+  tags: string[];
 };
 
 export type SteamCatalogRow = {
@@ -30,6 +31,7 @@ export type SteamCatalogRow = {
   source_updated_at: string;
   last_seen_at: string;
   released_at: string | null;
+  tags: string[];
 };
 
 const MAX_STEAM_APP_ID = 999_999_999_999;
@@ -75,6 +77,7 @@ export function buildSteamCatalogRows({
       source_updated_at: sourceUpdatedAt,
       last_seen_at: now,
       released_at: released ? releaseDate ? `${releaseDate}T00:00:00.000Z` : sourceUpdatedAt : null,
+      tags: details?.tags ?? [],
     });
   }
 

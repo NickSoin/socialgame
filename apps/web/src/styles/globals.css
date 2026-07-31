@@ -441,7 +441,7 @@ button:disabled {
 }
 .sb-game-list {
   display: grid;
-  gap: 28px;
+  gap: 14px;
 }
 .sb-game-card {
   position: relative;
@@ -479,6 +479,9 @@ button:disabled {
   height: 100%;
   object-fit: contain;
 }
+.sb-game-hero.is-previewing img {
+  object-fit: cover;
+}
 .sb-game-hero.is-card {
   align-self: start;
   width: 100%;
@@ -515,17 +518,43 @@ button:disabled {
 }
 .sb-game-card__content {
   display: grid;
-  grid-template-rows: 38px minmax(0, 1fr);
+  grid-template-rows: 46px minmax(0, 1fr);
   min-width: 0;
   padding: 0 20px 0 7px;
 }
 .sb-game-card__header {
   display: flex;
-  align-items: center;
+  align-items: flex-start;
   justify-content: space-between;
   gap: 16px;
   min-width: 0;
-  padding-left: 8px;
+  padding: 7px 0 0 8px;
+}
+.sb-game-card__title {
+  min-width: 0;
+}
+.sb-game-card__name {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  min-width: 0;
+}
+.sb-steam-store-link {
+  display: inline-flex;
+  flex: 0 0 auto;
+  align-items: center;
+  justify-content: center;
+  width: 16px;
+  height: 16px;
+  border-radius: 50%;
+}
+.sb-steam-store-link img {
+  display: block;
+  width: 14px;
+  height: 14px;
+}
+.sb-steam-store-link:hover {
+  opacity: 0.72;
 }
 .sb-game-card__header h2 {
   min-width: 0;
@@ -540,6 +569,16 @@ button:disabled {
   text-wrap: balance;
   white-space: nowrap;
 }
+.sb-game-card__tags {
+  margin: 1px 0 0;
+  overflow: hidden;
+  color: var(--muted-foreground);
+  font-size: 11px;
+  font-weight: 450;
+  line-height: 1.2;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
 .sb-game-card__header time {
   flex: 0 0 auto;
   color: var(--foreground);
@@ -547,7 +586,7 @@ button:disabled {
   font-variant-numeric: tabular-nums;
   font-weight: 700;
   letter-spacing: -0.035em;
-  line-height: 1;
+  line-height: 1.2;
   white-space: nowrap;
 }
 .sb-game-card__targets {
@@ -560,12 +599,12 @@ button:disabled {
 .sb-forecast-field {
   position: relative;
   display: grid;
-  grid-template-rows: 24px 40px;
+  grid-template-rows: 18px 38px;
   align-content: start;
-  gap: 6px;
+  gap: 4px;
   min-width: 0;
   margin: 0;
-  padding: 9px 10px;
+  padding: 7px 8px;
   border: 1px solid var(--border);
   border-radius: 10px;
   background: #fff;
@@ -577,10 +616,12 @@ button:disabled {
   justify-content: flex-start;
   min-width: 0;
   color: var(--foreground);
-  font-size: var(--font-secondary);
+  overflow: hidden;
+  font-size: 10px;
   font-weight: 600;
-  line-height: 1.15;
-  text-wrap: balance;
+  line-height: 1;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 .sb-forecast-field__body {
   display: grid;
@@ -594,7 +635,7 @@ button:disabled {
   align-items: center;
   width: 100%;
   max-width: 110px;
-  height: 40px;
+  height: 38px;
   overflow: hidden;
   border: 1px solid #d5d8dc;
   border-radius: 4px;
@@ -648,32 +689,53 @@ button:disabled {
   line-height: 1.15;
   white-space: nowrap;
 }
-.sb-bet-approve {
+.is-editing .sb-forecast-stats {
+  opacity: 0;
+}
+.sb-bet-actions {
   position: absolute;
-  left: 50%;
-  bottom: -27px;
-  z-index: 2;
-  min-height: 36px;
-  padding: 4px 13px;
-  transform: translateX(-50%);
-  border: 0;
-  border-radius: 7px;
-  background: var(--accent);
-  color: #fff;
-  font-size: var(--font-secondary);
-  font-weight: 600;
+  right: 7px;
+  bottom: 12px;
+  z-index: 3;
+  display: flex;
+  gap: 5px;
+}
+.sb-bet-action {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 27px;
+  height: 27px;
+  padding: 0;
+  border: 1px solid transparent;
+  border-radius: 999px;
+  font-size: 18px;
+  font-weight: 700;
   line-height: 1;
-  white-space: nowrap;
+  cursor: pointer;
 }
-.sb-bet-approve:hover:not(:disabled) {
-  background: var(--accent-hover);
-  color: #fff;
+.sb-bet-action.is-confirm {
+  border-color: #a9ddba;
+  background: #e8f7ed;
+  color: #178743;
 }
-.sb-bet-approve:focus-visible {
-  outline: 3px solid #a9bdff;
+.sb-bet-action.is-confirm:hover:not(:disabled) {
+  background: #d8f2e1;
+}
+.sb-bet-action.is-cancel {
+  border-color: #efb8b8;
+  background: #fff0f0;
+  color: #c13b3b;
+}
+.sb-bet-action.is-cancel:hover:not(:disabled) {
+  background: #ffe2e2;
+}
+.sb-bet-action:focus-visible {
+  outline: 3px solid #bfd6ff;
   outline-offset: 2px;
 }
-.sb-bet-approve:disabled {
+.sb-bet-action:disabled {
+  cursor: default;
   opacity: 0.55;
 }
 .sb-forecast-error {

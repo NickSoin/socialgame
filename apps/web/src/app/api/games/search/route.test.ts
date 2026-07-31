@@ -19,6 +19,7 @@ describe("game catalog search route", () => {
         name: "Corsair Cove",
         releaseDate: "2026-07-31T00:00:00.000Z",
         releaseLabel: "July 31",
+        tags: ["Adventure"],
         wishlistRank: 77,
         targets: [],
       },

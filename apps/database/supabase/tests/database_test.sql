@@ -68,7 +68,7 @@ $$;
 GRANT EXECUTE ON FUNCTION tests.set_user_context(uuid) TO authenticated;
 GRANT EXECUTE ON FUNCTION tests.clear_user_context() TO anon, authenticated;
 
-SELECT plan(124);
+SELECT plan(125);
 
 -- =============================================================================
 -- Schema, RLS, grants, and RPC shape
@@ -96,6 +96,7 @@ SELECT has_column('public', 'steam_games', 'source_updated_at', 'Steam games pre
 SELECT has_column('public', 'steam_games', 'is_popular_upcoming', 'Steam games store Popular Upcoming membership');
 SELECT has_column('public', 'steam_games', 'popular_upcoming_position', 'Steam games store Steam popularity position');
 SELECT has_column('public', 'steam_games', 'steam_data_updated_at', 'Steam games store Steam refresh time');
+SELECT has_column('public', 'steam_games', 'tags', 'Steam games store Steam genres');
 SELECT ok(to_regclass('public.leaderboard') IS NOT NULL, 'leaderboard view exists');
 
 SELECT ok(
