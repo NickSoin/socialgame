@@ -97,6 +97,8 @@ CREATE TABLE public.steam_games (
   media_updated_at timestamptz,
   steam_app_type text,
   classification_updated_at timestamptz,
+  follower_count bigint,
+  followers_updated_at timestamptz,
   CONSTRAINT steam_games_app_id_check CHECK (steam_app_id > 0),
   CONSTRAINT steam_games_name_check CHECK (char_length(name) BETWEEN 1 AND 250),
   CONSTRAINT steam_games_image_url_check CHECK (image_url ~ '^https://'),
@@ -134,6 +136,9 @@ CREATE TABLE public.steam_games (
   CONSTRAINT steam_games_tags_limit_check CHECK (cardinality(tags) <= 5),
   CONSTRAINT steam_games_app_type_check CHECK (
     steam_app_type IS NULL OR steam_app_type ~ '^[a-z0-9_]{1,40}$'
+  ),
+  CONSTRAINT steam_games_follower_count_check CHECK (
+    follower_count IS NULL OR follower_count >= 0
   ),
   CONSTRAINT steam_games_classification_check CHECK (
     (steam_app_type IS NULL AND classification_updated_at IS NULL)
@@ -202,7 +207,7 @@ CREATE TABLE public.steam_game_enrichment_state (
   updated_at timestamptz NOT NULL DEFAULT now(),
   PRIMARY KEY (steam_app_id, component),
   CONSTRAINT steam_game_enrichment_state_component_check CHECK (
-    component IN ('release', 'tags', 'media')
+    component IN ('release', 'tags', 'media', 'followers')
   ),
   CONSTRAINT steam_game_enrichment_state_status_check CHECK (
     status IN ('pending', 'complete', 'partial', 'not_available', 'error')

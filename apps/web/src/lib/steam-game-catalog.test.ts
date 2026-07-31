@@ -14,6 +14,7 @@ describe("toSteamUpcomingGame", () => {
       lifecycle_status: "upcoming",
       pre_release_rank: 12,
       wishlist_rank: 12,
+      follower_count: 12345,
     });
 
     expect(game).toMatchObject({
@@ -40,6 +41,7 @@ describe("toSteamUpcomingGame", () => {
       lifecycle_status: "upcoming",
       pre_release_rank: 1,
       wishlist_rank: 1,
+      follower_count: null,
       steam_game_media: [
         { active: true, kind: "screenshot", position: 2, storage_bucket: "steam-game-media", storage_path: "42/screenshots/2-bbbbbbbbbbbb.webp" },
         { active: true, kind: "screenshot", position: 1, storage_bucket: "steam-game-media", storage_path: "42/screenshots/1-aaaaaaaaaaaa.webp" },
@@ -65,6 +67,7 @@ describe("toSteamUpcomingGame", () => {
       lifecycle_status: "upcoming",
       pre_release_rank: null,
       wishlist_rank: null,
+      follower_count: null,
     });
 
     expect(game.releaseDate).toBe("TBA");
@@ -82,6 +85,7 @@ describe("toSteamUpcomingGame", () => {
       lifecycle_status: "upcoming",
       pre_release_rank: 1,
       wishlist_rank: 1,
+      follower_count: null,
     });
 
     expect(game.tags).toEqual(["Action", "RPG", "Indie", "Adventure", "Simulation"]);
@@ -98,6 +102,7 @@ describe("toSteamUpcomingGame", () => {
       lifecycle_status: "released",
       pre_release_rank: 7,
       wishlist_rank: null,
+      follower_count: null,
     });
 
     expect(game).toMatchObject({

@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useRef, useState } from "react";
+import { Users } from "lucide-react";
 import { getSteamGameHeroUrl, STEAM_GAME_HERO_ASPECT_RATIO } from "@/lib/steam-game-hero";
 
 const NO_PREVIEWS: readonly string[] = [];
@@ -18,6 +19,7 @@ export function GameHero({
   priority = false,
   previewActive,
   wishlistRank,
+  followerCount = null,
   variant = "card",
 }: {
   appId: number;
@@ -27,6 +29,7 @@ export function GameHero({
   priority?: boolean;
   previewActive?: boolean;
   wishlistRank: number | null;
+  followerCount?: number | null;
   variant?: "card" | "search";
 }) {
   const [isHovered, setIsHovered] = useState(false);
@@ -118,10 +121,20 @@ export function GameHero({
         src={isShowingPreview ? frameUrl : heroUrl}
         width={460}
       />
-      {wishlistRank !== null && (
-        <span className="sb-game-hero__rank" aria-label={`Top wishlisted rank ${wishlistRank}`}>
-          #{wishlistRank}
-        </span>
+      {(wishlistRank !== null || (variant === "card" && followerCount !== null)) && (
+        <div className="sb-game-hero__metrics">
+          {wishlistRank !== null && (
+            <span className="sb-game-hero__rank" aria-label={`Top wishlisted rank ${wishlistRank}`}>
+              #{wishlistRank}
+            </span>
+          )}
+          {variant === "card" && followerCount !== null && (
+            <span className="sb-game-hero__followers" aria-label={`${followerCount.toLocaleString("en-US")} Steam followers`}>
+              <Users aria-hidden="true" size={13} strokeWidth={2.2} />
+              {followerCount.toLocaleString("en-US")}
+            </span>
+          )}
+        </div>
       )}
     </div>
   );
