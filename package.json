@@ -26,6 +26,7 @@
     "test:e2e": "turbo run test:e2e --filter=web",
     "steamdb:sample-peaks": "tsx scripts/scrape-steamdb-wayback-peaks.ts",
     "steamdb:all-peaks": "tsx scripts/scrape-all-steamdb-wayback-peaks.ts",
+    "steam:configure-schedule": "pnpm --filter database steam:configure-schedule",
     "steam:backfill": "pnpm --filter database steam:backfill",
     "supabase:sync-env": "tsx scripts/sync-supabase-env.ts"
   },

@@ -191,12 +191,17 @@ async function processMediaJob(job) {
   } catch (error) {
     const failures = Number(job.consecutive_failures ?? 0) + 1;
     const retrySeconds = Math.min(300 * 2 ** Math.min(failures - 1, 8), 86_400);
+    const message = errorMessage(error);
+    console.error("Steam media processing failed", {
+      appId: job.steam_app_id,
+      message,
+    });
     await supabase.from("steam_game_enrichment_state").update({
       status: "error",
       retry_after: new Date(Date.now() + retrySeconds * 1000).toISOString(),
       consecutive_failures: failures,
       error_code: errorCode(error),
-      error_message: String(error instanceof Error ? error.message : error).replace(/\s+/g, " ").slice(0, 500),
+      error_message: message,
       lease_owner: null,
       lease_expires_at: null,
     }).eq("steam_app_id", job.steam_app_id).eq("component", "media").eq("lease_owner", workerId);
@@ -275,12 +280,21 @@ async function finishRun(status, errorMessage = null) {
 }
 
 function errorCode(error) {
-  const message = String(error instanceof Error ? error.message : error).toLowerCase();
+  const message = errorMessage(error).toLowerCase();
   if (message.includes("timeout")) return "timeout";
   if (message.includes("429")) return "rate_limited";
   if (message.includes("untrusted")) return "untrusted_source";
   if (message.includes("budget")) return "image_budget";
   return "media_processing_error";
+}
+
+function errorMessage(error) {
+  const value = error instanceof Error
+    ? error.message
+    : error && typeof error === "object" && "message" in error
+      ? String(error.message)
+      : JSON.stringify(error);
+  return (value || String(error)).replace(/\s+/g, " ").slice(0, 500);
 }
 
 function parseArguments(arguments_) {

@@ -41,9 +41,24 @@ Password recovery uses the same route with `type=recovery` and `next=/update-pas
 
 ## Steam metadata
 
-`public.steam_games` is the server-side game catalog. Its current membership comes from the 256 `v2/current` JSON shards published by `NickSoin/SteamTopWishlistsRank`; the ledger is read only for games that have already moved to `released`. The sync rejects incomplete shard sets by comparing them with `v2/meta.json`, then enriches the first 200 upcoming games from Steam's `appdetails` API. Cards use Steam's store-page `header_image` as their GameHero. Missing or legacy artwork is resolved through the public `steam-artwork` Supabase Edge Function and cached as a redirect to the current hashed Steam asset.
+`public.steam_games` is the server-side game catalog. Membership and wishlist rank come from the 256 `v2/current` JSON shards published by `NickSoin/SteamTopWishlistsRank`; the ledger is read only for games that have already moved to `released`. The catalog sync rejects incomplete shard sets by comparing them with `v2/meta.json`. It never overwrites Steam-owned release, tag, or media fields.
 
-The `sync-steam-catalog` Edge Function is idempotent for each source timestamp and records every run in `public.steam_catalog_sync_runs`. Production runs it at `15 1,6,11,16,21 * * *` UTC, after the upstream GitHub Action scheduled at minute 23 every five hours with a random delay. A game is closed to new predictions as soon as either the upstream ledger marks it released or Steam reports `coming_soon: false`; games that merely leave the current wishlist feed stay in history with `is_wishlisted = false`.
+Steam enrichment is split by responsibility:
+
+- `sync-steam-catalog` refreshes catalog membership and initializes component state.
+- `sync-steam-popular` stores Steam's ordered Popular Upcoming intersection; it does not fetch per-game metadata.
+- `sync-steam-details` refreshes App Details release metadata, Store-page tags, and the ordered screenshot source manifest. Exact dates are stored only when Steam supplies a complete valid day; values such as `2026`, `July 2026`, `Q3 2026`, and `Coming soon` remain partial/TBA labels with a null `release_date`.
+- The trusted Node worker claims media jobs, downloads only allowlisted Steam CDN URLs, converts at most two screenshots to WebP under 25 KiB without cropping or upscaling, uploads a versioned Storage object, and then atomically publishes its database row. The browser can read only active media rows and cannot upload.
+
+`public.steam_game_enrichment_state` stores independent release/tags/media status, retries, errors, source fingerprints, and leases. `public.steam_enrichment_runs` and `public.steam_game_release_transitions` provide run and release audit history. Transient failures keep the last good catalog values and use bounded exponential backoff; a successful authoritative partial/TBA response may clear a formerly exact date. Successful responses with no field are recorded as `not_available`, not retried forever.
+
+Cards and search read the same bounded Supabase catalog query, including active `public.steam_game_media` rows. Their canonical hero is the cached `steam_games.image_url`; their hover carousel reads Supabase Storage URLs. Rendering a page or searching never invokes a Steam metadata scraper.
+
+Scheduled Edge Functions require a 32+ character `x-steam-sync-secret` in addition to the project API key. Browser roles have no grants on operational state, transition, or run tables. Service-only SQL functions revoke default `PUBLIC` execution explicitly.
+
+Production schedules are `15 1,6,11,16,21 * * *` UTC for catalog membership, `17 */3 * * *` for Popular Upcoming, and every ten minutes at minutes `2,12,22,32,42,52` for details discovery. A separate GitHub worker runs twice hourly to drain media jobs. See `docs/STEAM_GAME_DATA_PIPELINE_RUNBOOK.md` for deployment, repair, and quality-report commands.
+
+A game is closed to new predictions as soon as either the upstream ledger marks it released or Steam reports `coming_soon: false`; games that merely leave the current wishlist feed stay in history with `is_wishlisted = false`.
 
 Release detection only closes new predictions and preserves existing immutable bet snapshots. It does not yet resolve the three numeric forecasts (first-weekend CCU, first-month reviews, and US price); those outcomes still require a separate evidence and scoring pipeline with an authorised human fallback.
 

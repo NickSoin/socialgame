@@ -86,6 +86,10 @@ SELECT has_table('public', 'numeric_predictions', 'numeric predictions table exi
 SELECT has_table('public', 'steam_bets', 'locked Steam bets table exists');
 SELECT has_table('public', 'steam_games', 'Steam wishlist catalog table exists');
 SELECT has_table('public', 'steam_catalog_sync_runs', 'Steam catalog sync history table exists');
+SELECT has_table('public', 'steam_game_enrichment_state', 'Steam enrichment component state exists');
+SELECT has_table('public', 'steam_game_media', 'Steam media metadata exists');
+SELECT has_table('public', 'steam_game_release_transitions', 'Steam release transition audit exists');
+SELECT has_table('public', 'steam_enrichment_runs', 'Steam enrichment run history exists');
 SELECT has_table('public', 'steam_percentile_models', 'versioned percentile models table exists');
 SELECT has_table('public', 'steam_scoring_config', 'global scoring start configuration exists');
 SELECT has_table('public', 'steam_forecast_markets', 'Steam points markets table exists');
@@ -116,6 +120,19 @@ SELECT has_column('public', 'steam_games', 'popular_upcoming_position', 'Steam g
 SELECT has_column('public', 'steam_games', 'steam_data_updated_at', 'Steam games store Steam refresh time');
 SELECT has_column('public', 'steam_games', 'steam_data_attempted_at', 'Steam games store Steam refresh attempts');
 SELECT has_column('public', 'steam_games', 'tags', 'Steam games store Steam genres');
+SELECT has_column('public', 'steam_games', 'release_text', 'Steam games preserve truthful release text');
+SELECT has_column('public', 'steam_games', 'release_precision', 'Steam games preserve release precision');
+SELECT has_column('public', 'steam_games', 'steam_coming_soon', 'Steam coming-soon state is independent');
+SELECT has_column('public', 'steam_games', 'release_metadata_updated_at', 'Release success freshness is tracked');
+SELECT has_column('public', 'steam_games', 'tag_source', 'Steam tag provenance is explicit');
+SELECT has_column('public', 'steam_games', 'tags_updated_at', 'Tag success freshness is tracked');
+SELECT has_column('public', 'steam_games', 'media_updated_at', 'Media success freshness is tracked');
+SELECT col_is_fk('public', 'steam_game_media', 'steam_app_id', 'Steam media belongs to a catalog game');
+SELECT has_index('public', 'steam_game_media', 'steam_game_media_active_position_idx', 'Only one active media row exists per position');
+SELECT has_function(
+  'public', 'get_steam_game_data_quality_report', ARRAY[]::text[],
+  'service-only Steam data quality report exists'
+);
 SELECT ok(to_regclass('public.leaderboard') IS NOT NULL, 'leaderboard view exists');
 
 SELECT ok(
@@ -164,6 +181,22 @@ SELECT ok(
 SELECT ok(
   (SELECT relrowsecurity FROM pg_class WHERE oid = 'public.steam_catalog_sync_runs'::regclass),
   'Steam catalog sync history has RLS enabled'
+);
+SELECT ok(
+  (SELECT relrowsecurity FROM pg_class WHERE oid = 'public.steam_game_enrichment_state'::regclass),
+  'Steam enrichment state has RLS enabled'
+);
+SELECT ok(
+  (SELECT relrowsecurity FROM pg_class WHERE oid = 'public.steam_game_media'::regclass),
+  'Steam media metadata has RLS enabled'
+);
+SELECT ok(
+  (SELECT relrowsecurity FROM pg_class WHERE oid = 'public.steam_game_release_transitions'::regclass),
+  'Steam release transition history has RLS enabled'
+);
+SELECT ok(
+  (SELECT relrowsecurity FROM pg_class WHERE oid = 'public.steam_enrichment_runs'::regclass),
+  'Steam enrichment run history has RLS enabled'
 );
 SELECT is(
   (
@@ -253,6 +286,40 @@ SELECT ok(
 SELECT ok(
   NOT has_table_privilege('authenticated', 'public.steam_catalog_sync_runs', 'SELECT'),
   'catalog sync history remains service-role only'
+);
+SELECT ok(
+  has_table_privilege('anon', 'public.steam_game_media', 'SELECT')
+    AND has_table_privilege('authenticated', 'public.steam_game_media', 'SELECT'),
+  'browser roles can read active Steam media metadata through RLS'
+);
+SELECT ok(
+  NOT has_table_privilege('anon', 'public.steam_game_media', 'INSERT')
+    AND NOT has_table_privilege('authenticated', 'public.steam_game_media', 'INSERT')
+    AND NOT has_table_privilege('authenticated', 'public.steam_game_media', 'UPDATE')
+    AND NOT has_table_privilege('authenticated', 'public.steam_game_media', 'DELETE'),
+  'browser roles cannot mutate Steam media metadata'
+);
+SELECT ok(
+  NOT has_table_privilege('anon', 'public.steam_game_enrichment_state', 'SELECT')
+    AND NOT has_table_privilege('authenticated', 'public.steam_game_enrichment_state', 'SELECT')
+    AND NOT has_table_privilege('authenticated', 'public.steam_enrichment_runs', 'SELECT')
+    AND NOT has_table_privilege('authenticated', 'public.steam_game_release_transitions', 'SELECT'),
+  'component state and run audit remain service-role only'
+);
+SELECT ok(
+  has_table_privilege('service_role', 'public.steam_game_media', 'INSERT')
+    AND has_table_privilege('service_role', 'public.steam_game_enrichment_state', 'UPDATE')
+    AND has_table_privilege('service_role', 'public.steam_enrichment_runs', 'INSERT'),
+  'service role can write enrichment data'
+);
+SELECT ok(
+  NOT (
+    SELECT prosecdef
+    FROM pg_proc
+    WHERE oid = 'public.get_steam_game_data_quality_report()'::regprocedure
+  )
+    AND has_function_privilege('service_role', 'public.get_steam_game_data_quality_report()', 'EXECUTE'),
+  'data quality report runs with caller permissions'
 );
 SELECT is(
   (
@@ -1506,5 +1573,93 @@ SELECT is(
 );
 RESET ROLE;
 SELECT tests.clear_user_context();
+
+-- Enrichment metadata remains read-only to browsers and prediction writes must
+-- never mutate the authoritative release fields on steam_games.
+INSERT INTO public.steam_games (
+  steam_app_id, name, image_url, release_date, release_label, lifecycle_status,
+  wishlist_rank, pre_release_rank, is_wishlisted, source_updated_at,
+  steam_data_updated_at
+) VALUES (
+  9990000, 'Enrichment Regression Game',
+  'https://shared.fastly.steamstatic.com/store_item_assets/steam/apps/9990000/header.jpg',
+  NULL, '2027', 'upcoming', 8, 8, true, now(), now()
+);
+
+INSERT INTO public.steam_game_media (
+  steam_app_id, kind, position, original_source_url, storage_bucket, storage_path,
+  mime_type, byte_size, width, height, checksum_sha256, encoder_quality, active
+) VALUES
+  (
+    4739040, 'screenshot', 1,
+    'https://shared.akamai.steamstatic.com/store_item_assets/steam/apps/4739040/one.jpg',
+    'steam-game-media', '4739040/screenshots/1-aaaaaaaaaaaa.webp',
+    'image/webp', 20000, 540, 304, repeat('a', 64), 70, true
+  ),
+  (
+    4739040, 'screenshot', 2,
+    'https://shared.akamai.steamstatic.com/store_item_assets/steam/apps/4739040/two.jpg',
+    'steam-game-media', '4739040/screenshots/2-bbbbbbbbbbbb.webp',
+    'image/webp', 19000, 540, 304, repeat('b', 64), 72, false
+  );
+
+SET LOCAL ROLE anon;
+SELECT is(
+  (SELECT count(*)::integer FROM public.steam_game_media WHERE steam_app_id = 4739040),
+  1,
+  'anonymous visitors see only active Steam media rows'
+);
+RESET ROLE;
+
+SELECT throws_ok(
+  $$
+    INSERT INTO public.steam_game_media (
+      steam_app_id, kind, position, original_source_url, storage_bucket, storage_path,
+      mime_type, byte_size, width, height, checksum_sha256, encoder_quality, active
+    ) VALUES (
+      4739040, 'screenshot', 1,
+      'https://shared.akamai.steamstatic.com/store_item_assets/steam/apps/4739040/duplicate.jpg',
+      'steam-game-media', '4739040/screenshots/1-cccccccccccc.webp',
+      'image/webp', 18000, 540, 304, repeat('c', 64), 70, true
+    )
+  $$,
+  '23505',
+  NULL,
+  'active Steam media positions are unique'
+);
+
+CREATE TEMP TABLE steam_release_snapshot AS
+SELECT steam_app_id, release_date, release_label, release_text, release_precision,
+  steam_coming_soon, release_metadata_updated_at
+FROM public.steam_games
+WHERE steam_app_id = 4739040;
+
+SET LOCAL ROLE authenticated;
+SELECT tests.set_user_context('91111111-1111-4111-8111-111111111111');
+SELECT lives_ok(
+  $$SELECT * FROM public.submit_steam_prediction(4739040, 'full_price_us', 49.99)$$,
+  'submitting a forecast succeeds without touching release metadata'
+);
+RESET ROLE;
+SELECT tests.clear_user_context();
+
+SELECT is(
+  (
+    SELECT jsonb_build_array(
+      game.release_date, game.release_label, game.release_text, game.release_precision,
+      game.steam_coming_soon, game.release_metadata_updated_at
+    )::text
+    FROM public.steam_games AS game WHERE game.steam_app_id = 4739040
+  ),
+  (
+    SELECT jsonb_build_array(
+      snapshot.release_date, snapshot.release_label, snapshot.release_text,
+      snapshot.release_precision, snapshot.steam_coming_soon,
+      snapshot.release_metadata_updated_at
+    )::text
+    FROM steam_release_snapshot AS snapshot
+  ),
+  'forecast submission leaves every release metadata field byte-for-byte unchanged'
+);
 SELECT * FROM finish();
 ROLLBACK;

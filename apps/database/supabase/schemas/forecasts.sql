@@ -212,7 +212,7 @@ CREATE TABLE public.steam_game_media (
   CONSTRAINT steam_game_media_source_url_check CHECK (original_source_url ~ '^https://'),
   CONSTRAINT steam_game_media_bucket_check CHECK (storage_bucket = 'steam-game-media'),
   CONSTRAINT steam_game_media_path_check CHECK (
-    storage_path ~ '^[1-9][0-9]*/screenshots/[12]-[a-f0-9]{12}\\.webp$'
+    storage_path ~ '^[1-9][0-9]*/screenshots/[12]-[a-f0-9]{12}[.]webp$'
   ),
   CONSTRAINT steam_game_media_mime_check CHECK (mime_type = 'image/webp'),
   CONSTRAINT steam_game_media_size_check CHECK (byte_size BETWEEN 1 AND 25600),
@@ -769,7 +769,7 @@ RETURNS TABLE (
 )
 LANGUAGE sql
 STABLE
-SECURITY DEFINER
+SECURITY INVOKER
 SET search_path = ''
 AS $$
   WITH active_games AS (

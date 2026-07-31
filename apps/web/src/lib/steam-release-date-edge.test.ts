@@ -5,6 +5,7 @@ import {
   normalizeSteamReleaseMetadata,
 } from "../../../database/supabase/functions/_shared/steam-release-date";
 import { parseSteamPopularUpcoming } from "../../../database/supabase/functions/_shared/steam-popular-upcoming";
+import dearPassengers from "./fixtures/dear-passengers-appdetails.json";
 
 describe("normalizeSteamReleaseDate", () => {
   it.each([
@@ -49,7 +50,9 @@ describe("normalizeSteamReleaseDate", () => {
   });
 
   it("keeps the Dear Passengers 2026 source label out of an exact-date bucket", () => {
-    const source = normalizeSteamReleaseMetadata("2026");
+    const release = dearPassengers["4534960"].data.release_date;
+    expect(release.coming_soon).toBe(true);
+    const source = normalizeSteamReleaseMetadata(release.date);
     expect(source).toMatchObject({ exactDate: null, label: "2026", precision: "year" });
     expect(source.exactDate).not.toBe("2026-01-01");
   });
