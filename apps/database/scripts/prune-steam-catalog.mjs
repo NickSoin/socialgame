@@ -12,18 +12,26 @@ const games = await fetchAllRows(
   "steam_games",
   "steam_app_id,name,lifecycle_status,release_date,steam_app_type",
 );
+const existingExclusions = await fetchAllRows(
+  "steam_catalog_exclusions",
+  "steam_app_id,reason,steam_app_type,release_date",
+);
+const exclusionByAppId = new Map(
+  existingExclusions.map((exclusion) => [Number(exclusion.steam_app_id), exclusion]),
+);
 const candidates = games.flatMap((game) => {
+  const existingExclusion = exclusionByAppId.get(Number(game.steam_app_id));
   const oldRelease = game.lifecycle_status === "released"
     && typeof game.release_date === "string"
     && game.release_date < options.cutoff;
   const nonGame = typeof game.steam_app_type === "string" && game.steam_app_type !== "game";
-  if (!oldRelease && !nonGame) return [];
+  if (!existingExclusion && !oldRelease && !nonGame) return [];
   return [{
     steam_app_id: Number(game.steam_app_id),
     name: String(game.name).slice(0, 250),
-    reason: oldRelease ? "released_before_cutoff" : "non_game",
-    steam_app_type: game.steam_app_type,
-    release_date: game.release_date,
+    reason: existingExclusion?.reason ?? (oldRelease ? "released_before_cutoff" : "non_game"),
+    steam_app_type: existingExclusion?.steam_app_type ?? game.steam_app_type,
+    release_date: existingExclusion?.release_date ?? game.release_date,
     source: "catalog_cleanup",
     excluded_at: new Date().toISOString(),
     last_seen_at: new Date().toISOString(),
