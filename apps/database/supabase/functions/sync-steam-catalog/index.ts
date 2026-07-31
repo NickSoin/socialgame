@@ -16,6 +16,7 @@ const SOURCE_LEDGER_URL =
 const UPSERT_BATCH_SIZE = 500;
 const SHARD_CONCURRENCY = 16;
 const RUNNING_LOCK_MS = 20 * 60 * 1000;
+const ELIGIBILITY_POLICY_VERSION = 'games-on-or-after-2026-07-30';
 
 type SourceMeta = {
   schemaVersion?: unknown;
@@ -209,6 +210,7 @@ Deno.serve(async (request) => {
       currentCount,
       releasedCount,
       excludedCount: excludedAppIds.size,
+      eligibilityPolicyVersion: ELIGIBILITY_POLICY_VERSION,
       preservedSteamDetailsCount: existingByAppId.size,
     });
   } catch (error) {
