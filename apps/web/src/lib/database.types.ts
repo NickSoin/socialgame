@@ -7,31 +7,6 @@ export type Json =
   | Json[]
 
 export type Database = {
-  graphql_public: {
-    Tables: {
-      [_ in never]: never
-    }
-    Views: {
-      [_ in never]: never
-    }
-    Functions: {
-      graphql: {
-        Args: {
-          extensions?: Json
-          operationName?: string
-          query?: string
-          variables?: Json
-        }
-        Returns: Json
-      }
-    }
-    Enums: {
-      [_ in never]: never
-    }
-    CompositeTypes: {
-      [_ in never]: never
-    }
-  }
   public: {
     Tables: {
       coin_ledger: {
@@ -350,6 +325,812 @@ export type Database = {
           predictions_resolved?: number
           updated_at?: string
           username?: string
+        }
+        Relationships: []
+      }
+      simulation_checkpoints: {
+        Row: {
+          created_at: string
+          created_by: string
+          id: string
+          name: string
+          simulation_id: string
+          simulation_time: string
+          state: Json
+        }
+        Insert: {
+          created_at?: string
+          created_by: string
+          id?: string
+          name: string
+          simulation_id: string
+          simulation_time: string
+          state: Json
+        }
+        Update: {
+          created_at?: string
+          created_by?: string
+          id?: string
+          name?: string
+          simulation_id?: string
+          simulation_time?: string
+          state?: Json
+        }
+        Relationships: [
+          {
+            foreignKeyName: "simulation_checkpoints_simulation_id_fkey"
+            columns: ["simulation_id"]
+            isOneToOne: false
+            referencedRelation: "simulations"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      simulation_events: {
+        Row: {
+          actor_user_id: string | null
+          created_at: string
+          event_at: string
+          event_type: string
+          id: number
+          market_id: string | null
+          payload: Json
+          player_id: string | null
+          simulation_id: string
+        }
+        Insert: {
+          actor_user_id?: string | null
+          created_at?: string
+          event_at: string
+          event_type: string
+          id?: never
+          market_id?: string | null
+          payload?: Json
+          player_id?: string | null
+          simulation_id: string
+        }
+        Update: {
+          actor_user_id?: string | null
+          created_at?: string
+          event_at?: string
+          event_type?: string
+          id?: never
+          market_id?: string | null
+          payload?: Json
+          player_id?: string | null
+          simulation_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "simulation_events_simulation_id_fkey"
+            columns: ["simulation_id"]
+            isOneToOne: false
+            referencedRelation: "simulations"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      simulation_forecast_versions: {
+        Row: {
+          created_at: string
+          id: string
+          market_id: string
+          percentile_value: number
+          player_id: string
+          raw_value: number
+          simulation_id: string
+          source: string
+          valid_from: string
+          valid_to: string | null
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          market_id: string
+          percentile_value: number
+          player_id: string
+          raw_value: number
+          simulation_id: string
+          source?: string
+          valid_from: string
+          valid_to?: string | null
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          market_id?: string
+          percentile_value?: number
+          player_id?: string
+          raw_value?: number
+          simulation_id?: string
+          source?: string
+          valid_from?: string
+          valid_to?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "simulation_forecast_versions_market_id_fkey"
+            columns: ["market_id"]
+            isOneToOne: false
+            referencedRelation: "simulation_markets"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "simulation_forecast_versions_player_id_fkey"
+            columns: ["player_id"]
+            isOneToOne: false
+            referencedRelation: "simulation_players"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "simulation_forecast_versions_simulation_id_fkey"
+            columns: ["simulation_id"]
+            isOneToOne: false
+            referencedRelation: "simulations"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      simulation_games: {
+        Row: {
+          created_at: string
+          hero_url: string | null
+          id: string
+          name: string
+          release_at: string | null
+          scenario_values: Json
+          simulation_id: string
+          steam_app_id: number | null
+          tags: string[]
+        }
+        Insert: {
+          created_at?: string
+          hero_url?: string | null
+          id?: string
+          name: string
+          release_at?: string | null
+          scenario_values?: Json
+          simulation_id: string
+          steam_app_id?: number | null
+          tags?: string[]
+        }
+        Update: {
+          created_at?: string
+          hero_url?: string | null
+          id?: string
+          name?: string
+          release_at?: string | null
+          scenario_values?: Json
+          simulation_id?: string
+          steam_app_id?: number | null
+          tags?: string[]
+        }
+        Relationships: [
+          {
+            foreignKeyName: "simulation_games_simulation_id_fkey"
+            columns: ["simulation_id"]
+            isOneToOne: false
+            referencedRelation: "simulations"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      simulation_markets: {
+        Row: {
+          created_at: string
+          game_id: string
+          id: string
+          lock_at: string | null
+          metric_type: string
+          percentile_model_version: number
+          resolve_after: string | null
+          simulation_id: string
+          status: Database["public"]["Enums"]["simulation_market_status"]
+          updated_at: string
+          void_reason: string | null
+        }
+        Insert: {
+          created_at?: string
+          game_id: string
+          id?: string
+          lock_at?: string | null
+          metric_type: string
+          percentile_model_version?: number
+          resolve_after?: string | null
+          simulation_id: string
+          status?: Database["public"]["Enums"]["simulation_market_status"]
+          updated_at?: string
+          void_reason?: string | null
+        }
+        Update: {
+          created_at?: string
+          game_id?: string
+          id?: string
+          lock_at?: string | null
+          metric_type?: string
+          percentile_model_version?: number
+          resolve_after?: string | null
+          simulation_id?: string
+          status?: Database["public"]["Enums"]["simulation_market_status"]
+          updated_at?: string
+          void_reason?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "simulation_markets_game_id_fkey"
+            columns: ["game_id"]
+            isOneToOne: false
+            referencedRelation: "simulation_games"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "simulation_markets_simulation_id_fkey"
+            columns: ["simulation_id"]
+            isOneToOne: false
+            referencedRelation: "simulations"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      simulation_players: {
+        Row: {
+          behavior: string
+          created_at: string
+          display_name: string
+          id: string
+          metadata: Json
+          simulation_id: string
+          skill: number
+          username: string
+        }
+        Insert: {
+          behavior?: string
+          created_at?: string
+          display_name: string
+          id?: string
+          metadata?: Json
+          simulation_id: string
+          skill?: number
+          username: string
+        }
+        Update: {
+          behavior?: string
+          created_at?: string
+          display_name?: string
+          id?: string
+          metadata?: Json
+          simulation_id?: string
+          skill?: number
+          username?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "simulation_players_simulation_id_fkey"
+            columns: ["simulation_id"]
+            isOneToOne: false
+            referencedRelation: "simulations"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      simulation_results: {
+        Row: {
+          actual_percentile_value: number
+          actual_raw_value: number
+          correction_note: string | null
+          created_at: string
+          created_by: string
+          id: string
+          is_current: boolean
+          market_id: string
+          resolved_at: string
+          result_version: number
+          simulation_id: string
+          source_reference: string
+        }
+        Insert: {
+          actual_percentile_value: number
+          actual_raw_value: number
+          correction_note?: string | null
+          created_at?: string
+          created_by: string
+          id?: string
+          is_current?: boolean
+          market_id: string
+          resolved_at: string
+          result_version: number
+          simulation_id: string
+          source_reference: string
+        }
+        Update: {
+          actual_percentile_value?: number
+          actual_raw_value?: number
+          correction_note?: string | null
+          created_at?: string
+          created_by?: string
+          id?: string
+          is_current?: boolean
+          market_id?: string
+          resolved_at?: string
+          result_version?: number
+          simulation_id?: string
+          source_reference?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "simulation_results_market_id_fkey"
+            columns: ["market_id"]
+            isOneToOne: false
+            referencedRelation: "simulation_markets"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "simulation_results_simulation_id_fkey"
+            columns: ["simulation_id"]
+            isOneToOne: false
+            referencedRelation: "simulations"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      simulation_scheduled_forecasts: {
+        Row: {
+          created_at: string
+          id: string
+          market_id: string
+          percentile_value: number
+          player_id: string
+          processed_at: string | null
+          raw_value: number
+          scheduled_at: string
+          simulation_id: string
+          source: string
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          market_id: string
+          percentile_value: number
+          player_id: string
+          processed_at?: string | null
+          raw_value: number
+          scheduled_at: string
+          simulation_id: string
+          source?: string
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          market_id?: string
+          percentile_value?: number
+          player_id?: string
+          processed_at?: string | null
+          raw_value?: number
+          scheduled_at?: string
+          simulation_id?: string
+          source?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "simulation_scheduled_forecasts_market_id_fkey"
+            columns: ["market_id"]
+            isOneToOne: false
+            referencedRelation: "simulation_markets"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "simulation_scheduled_forecasts_player_id_fkey"
+            columns: ["player_id"]
+            isOneToOne: false
+            referencedRelation: "simulation_players"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "simulation_scheduled_forecasts_simulation_id_fkey"
+            columns: ["simulation_id"]
+            isOneToOne: false
+            referencedRelation: "simulations"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      simulation_score_entries: {
+        Row: {
+          actual_percentile: number
+          created_at: string
+          crowd_error: number
+          crowd_without_user_percentile: number
+          id: string
+          market_id: string
+          player_id: string
+          points: number
+          score_run_id: string
+          simulation_id: string
+          snapshot_id: string
+          user_error: number
+          user_percentile: number
+        }
+        Insert: {
+          actual_percentile: number
+          created_at?: string
+          crowd_error: number
+          crowd_without_user_percentile: number
+          id?: string
+          market_id: string
+          player_id: string
+          points: number
+          score_run_id: string
+          simulation_id: string
+          snapshot_id: string
+          user_error: number
+          user_percentile: number
+        }
+        Update: {
+          actual_percentile?: number
+          created_at?: string
+          crowd_error?: number
+          crowd_without_user_percentile?: number
+          id?: string
+          market_id?: string
+          player_id?: string
+          points?: number
+          score_run_id?: string
+          simulation_id?: string
+          snapshot_id?: string
+          user_error?: number
+          user_percentile?: number
+        }
+        Relationships: [
+          {
+            foreignKeyName: "simulation_score_entries_market_id_fkey"
+            columns: ["market_id"]
+            isOneToOne: false
+            referencedRelation: "simulation_markets"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "simulation_score_entries_player_id_fkey"
+            columns: ["player_id"]
+            isOneToOne: false
+            referencedRelation: "simulation_players"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "simulation_score_entries_score_run_id_fkey"
+            columns: ["score_run_id"]
+            isOneToOne: false
+            referencedRelation: "simulation_score_runs"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "simulation_score_entries_simulation_id_fkey"
+            columns: ["simulation_id"]
+            isOneToOne: false
+            referencedRelation: "simulations"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "simulation_score_entries_snapshot_id_fkey"
+            columns: ["snapshot_id"]
+            isOneToOne: false
+            referencedRelation: "simulation_snapshots"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      simulation_score_runs: {
+        Row: {
+          created_at: string
+          created_by: string
+          formula_key: string
+          id: string
+          is_current: boolean
+          market_id: string
+          reason: string
+          result_id: string
+          run_version: number
+          simulation_id: string
+        }
+        Insert: {
+          created_at?: string
+          created_by: string
+          formula_key?: string
+          id?: string
+          is_current?: boolean
+          market_id: string
+          reason: string
+          result_id: string
+          run_version: number
+          simulation_id: string
+        }
+        Update: {
+          created_at?: string
+          created_by?: string
+          formula_key?: string
+          id?: string
+          is_current?: boolean
+          market_id?: string
+          reason?: string
+          result_id?: string
+          run_version?: number
+          simulation_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "simulation_score_runs_market_id_fkey"
+            columns: ["market_id"]
+            isOneToOne: false
+            referencedRelation: "simulation_markets"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "simulation_score_runs_result_id_fkey"
+            columns: ["result_id"]
+            isOneToOne: false
+            referencedRelation: "simulation_results"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "simulation_score_runs_simulation_id_fkey"
+            columns: ["simulation_id"]
+            isOneToOne: false
+            referencedRelation: "simulations"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      simulation_snapshot_predictions: {
+        Row: {
+          forecast_version_id: string
+          percentile_value: number
+          player_id: string
+          raw_value: number
+          simulation_id: string
+          snapshot_id: string
+        }
+        Insert: {
+          forecast_version_id: string
+          percentile_value: number
+          player_id: string
+          raw_value: number
+          simulation_id: string
+          snapshot_id: string
+        }
+        Update: {
+          forecast_version_id?: string
+          percentile_value?: number
+          player_id?: string
+          raw_value?: number
+          simulation_id?: string
+          snapshot_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "simulation_snapshot_predictions_forecast_version_id_fkey"
+            columns: ["forecast_version_id"]
+            isOneToOne: false
+            referencedRelation: "simulation_forecast_versions"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "simulation_snapshot_predictions_player_id_fkey"
+            columns: ["player_id"]
+            isOneToOne: false
+            referencedRelation: "simulation_players"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "simulation_snapshot_predictions_simulation_id_fkey"
+            columns: ["simulation_id"]
+            isOneToOne: false
+            referencedRelation: "simulations"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "simulation_snapshot_predictions_snapshot_id_fkey"
+            columns: ["snapshot_id"]
+            isOneToOne: false
+            referencedRelation: "simulation_snapshots"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      simulation_snapshots: {
+        Row: {
+          created_at: string
+          crowd_percentile: number | null
+          eligible_prediction_count: number
+          id: string
+          market_id: string
+          simulation_id: string
+          snapshot_at: string
+        }
+        Insert: {
+          created_at?: string
+          crowd_percentile?: number | null
+          eligible_prediction_count?: number
+          id?: string
+          market_id: string
+          simulation_id: string
+          snapshot_at: string
+        }
+        Update: {
+          created_at?: string
+          crowd_percentile?: number | null
+          eligible_prediction_count?: number
+          id?: string
+          market_id?: string
+          simulation_id?: string
+          snapshot_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "simulation_snapshots_market_id_fkey"
+            columns: ["market_id"]
+            isOneToOne: false
+            referencedRelation: "simulation_markets"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "simulation_snapshots_simulation_id_fkey"
+            columns: ["simulation_id"]
+            isOneToOne: false
+            referencedRelation: "simulations"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      simulations: {
+        Row: {
+          archived_at: string | null
+          config: Json
+          created_at: string
+          created_by: string
+          description: string
+          id: string
+          name: string
+          preset_key: string | null
+          random_seed: number
+          simulation_time: string
+          started_at: string | null
+          status: Database["public"]["Enums"]["simulation_status"]
+          updated_at: string
+        }
+        Insert: {
+          archived_at?: string | null
+          config?: Json
+          created_at?: string
+          created_by: string
+          description?: string
+          id?: string
+          name: string
+          preset_key?: string | null
+          random_seed: number
+          simulation_time: string
+          started_at?: string | null
+          status?: Database["public"]["Enums"]["simulation_status"]
+          updated_at?: string
+        }
+        Update: {
+          archived_at?: string | null
+          config?: Json
+          created_at?: string
+          created_by?: string
+          description?: string
+          id?: string
+          name?: string
+          preset_key?: string | null
+          random_seed?: number
+          simulation_time?: string
+          started_at?: string | null
+          status?: Database["public"]["Enums"]["simulation_status"]
+          updated_at?: string
+        }
+        Relationships: []
+      }
+      staging_pending_role_assignments: {
+        Row: {
+          claimed_at: string | null
+          claimed_by: string | null
+          email: string
+          id: string
+          requested_at: string
+          requested_by: string | null
+          revoked_at: string | null
+          revoked_by: string | null
+          role: Database["public"]["Enums"]["staging_user_role"]
+          status: Database["public"]["Enums"]["staging_assignment_status"]
+        }
+        Insert: {
+          claimed_at?: string | null
+          claimed_by?: string | null
+          email: string
+          id?: string
+          requested_at?: string
+          requested_by?: string | null
+          revoked_at?: string | null
+          revoked_by?: string | null
+          role: Database["public"]["Enums"]["staging_user_role"]
+          status?: Database["public"]["Enums"]["staging_assignment_status"]
+        }
+        Update: {
+          claimed_at?: string | null
+          claimed_by?: string | null
+          email?: string
+          id?: string
+          requested_at?: string
+          requested_by?: string | null
+          revoked_at?: string | null
+          revoked_by?: string | null
+          role?: Database["public"]["Enums"]["staging_user_role"]
+          status?: Database["public"]["Enums"]["staging_assignment_status"]
+        }
+        Relationships: []
+      }
+      staging_role_audit_log: {
+        Row: {
+          action: string
+          actor_email: string | null
+          actor_user_id: string | null
+          created_at: string
+          id: number
+          metadata: Json
+          new_role: Database["public"]["Enums"]["staging_user_role"] | null
+          previous_role: Database["public"]["Enums"]["staging_user_role"] | null
+          target_email: string | null
+          target_user_id: string | null
+        }
+        Insert: {
+          action: string
+          actor_email?: string | null
+          actor_user_id?: string | null
+          created_at?: string
+          id?: never
+          metadata?: Json
+          new_role?: Database["public"]["Enums"]["staging_user_role"] | null
+          previous_role?:
+            | Database["public"]["Enums"]["staging_user_role"]
+            | null
+          target_email?: string | null
+          target_user_id?: string | null
+        }
+        Update: {
+          action?: string
+          actor_email?: string | null
+          actor_user_id?: string | null
+          created_at?: string
+          id?: never
+          metadata?: Json
+          new_role?: Database["public"]["Enums"]["staging_user_role"] | null
+          previous_role?:
+            | Database["public"]["Enums"]["staging_user_role"]
+            | null
+          target_email?: string | null
+          target_user_id?: string | null
+        }
+        Relationships: []
+      }
+      staging_user_roles: {
+        Row: {
+          granted_at: string
+          granted_by: string | null
+          role: Database["public"]["Enums"]["staging_user_role"]
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          granted_at?: string
+          granted_by?: string | null
+          role?: Database["public"]["Enums"]["staging_user_role"]
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          granted_at?: string
+          granted_by?: string | null
+          role?: Database["public"]["Enums"]["staging_user_role"]
+          updated_at?: string
+          user_id?: string
         }
         Relationships: []
       }
@@ -1672,551 +2453,10 @@ export type Database = {
         | "prediction_payout"
       market_status: "open" | "resolved"
       prediction_outcome: "yes" | "no"
-    }
-    CompositeTypes: {
-      [_ in never]: never
-    }
-  }
-  storage: {
-    Tables: {
-      buckets: {
-        Row: {
-          allowed_mime_types: string[] | null
-          avif_autodetection: boolean | null
-          created_at: string | null
-          file_size_limit: number | null
-          id: string
-          name: string
-          owner: string | null
-          owner_id: string | null
-          public: boolean | null
-          type: Database["storage"]["Enums"]["buckettype"]
-          updated_at: string | null
-        }
-        Insert: {
-          allowed_mime_types?: string[] | null
-          avif_autodetection?: boolean | null
-          created_at?: string | null
-          file_size_limit?: number | null
-          id: string
-          name: string
-          owner?: string | null
-          owner_id?: string | null
-          public?: boolean | null
-          type?: Database["storage"]["Enums"]["buckettype"]
-          updated_at?: string | null
-        }
-        Update: {
-          allowed_mime_types?: string[] | null
-          avif_autodetection?: boolean | null
-          created_at?: string | null
-          file_size_limit?: number | null
-          id?: string
-          name?: string
-          owner?: string | null
-          owner_id?: string | null
-          public?: boolean | null
-          type?: Database["storage"]["Enums"]["buckettype"]
-          updated_at?: string | null
-        }
-        Relationships: []
-      }
-      buckets_analytics: {
-        Row: {
-          created_at: string
-          deleted_at: string | null
-          format: string
-          id: string
-          name: string
-          type: Database["storage"]["Enums"]["buckettype"]
-          updated_at: string
-        }
-        Insert: {
-          created_at?: string
-          deleted_at?: string | null
-          format?: string
-          id?: string
-          name: string
-          type?: Database["storage"]["Enums"]["buckettype"]
-          updated_at?: string
-        }
-        Update: {
-          created_at?: string
-          deleted_at?: string | null
-          format?: string
-          id?: string
-          name?: string
-          type?: Database["storage"]["Enums"]["buckettype"]
-          updated_at?: string
-        }
-        Relationships: []
-      }
-      buckets_vectors: {
-        Row: {
-          created_at: string
-          id: string
-          type: Database["storage"]["Enums"]["buckettype"]
-          updated_at: string
-        }
-        Insert: {
-          created_at?: string
-          id: string
-          type?: Database["storage"]["Enums"]["buckettype"]
-          updated_at?: string
-        }
-        Update: {
-          created_at?: string
-          id?: string
-          type?: Database["storage"]["Enums"]["buckettype"]
-          updated_at?: string
-        }
-        Relationships: []
-      }
-      iceberg_namespaces: {
-        Row: {
-          bucket_name: string
-          catalog_id: string
-          created_at: string
-          id: string
-          metadata: Json
-          name: string
-          updated_at: string
-        }
-        Insert: {
-          bucket_name: string
-          catalog_id: string
-          created_at?: string
-          id?: string
-          metadata?: Json
-          name: string
-          updated_at?: string
-        }
-        Update: {
-          bucket_name?: string
-          catalog_id?: string
-          created_at?: string
-          id?: string
-          metadata?: Json
-          name?: string
-          updated_at?: string
-        }
-        Relationships: [
-          {
-            foreignKeyName: "iceberg_namespaces_catalog_id_fkey"
-            columns: ["catalog_id"]
-            isOneToOne: false
-            referencedRelation: "buckets_analytics"
-            referencedColumns: ["id"]
-          },
-        ]
-      }
-      iceberg_tables: {
-        Row: {
-          bucket_name: string
-          catalog_id: string
-          created_at: string
-          id: string
-          location: string
-          name: string
-          namespace_id: string
-          remote_table_id: string | null
-          shard_id: string | null
-          shard_key: string | null
-          updated_at: string
-        }
-        Insert: {
-          bucket_name: string
-          catalog_id: string
-          created_at?: string
-          id?: string
-          location: string
-          name: string
-          namespace_id: string
-          remote_table_id?: string | null
-          shard_id?: string | null
-          shard_key?: string | null
-          updated_at?: string
-        }
-        Update: {
-          bucket_name?: string
-          catalog_id?: string
-          created_at?: string
-          id?: string
-          location?: string
-          name?: string
-          namespace_id?: string
-          remote_table_id?: string | null
-          shard_id?: string | null
-          shard_key?: string | null
-          updated_at?: string
-        }
-        Relationships: [
-          {
-            foreignKeyName: "iceberg_tables_catalog_id_fkey"
-            columns: ["catalog_id"]
-            isOneToOne: false
-            referencedRelation: "buckets_analytics"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "iceberg_tables_namespace_id_fkey"
-            columns: ["namespace_id"]
-            isOneToOne: false
-            referencedRelation: "iceberg_namespaces"
-            referencedColumns: ["id"]
-          },
-        ]
-      }
-      migrations: {
-        Row: {
-          executed_at: string | null
-          hash: string
-          id: number
-          name: string
-        }
-        Insert: {
-          executed_at?: string | null
-          hash: string
-          id: number
-          name: string
-        }
-        Update: {
-          executed_at?: string | null
-          hash?: string
-          id?: number
-          name?: string
-        }
-        Relationships: []
-      }
-      objects: {
-        Row: {
-          bucket_id: string | null
-          created_at: string | null
-          id: string
-          last_accessed_at: string | null
-          metadata: Json | null
-          name: string | null
-          owner: string | null
-          owner_id: string | null
-          path_tokens: string[] | null
-          updated_at: string | null
-          user_metadata: Json | null
-          version: string | null
-        }
-        Insert: {
-          bucket_id?: string | null
-          created_at?: string | null
-          id?: string
-          last_accessed_at?: string | null
-          metadata?: Json | null
-          name?: string | null
-          owner?: string | null
-          owner_id?: string | null
-          path_tokens?: string[] | null
-          updated_at?: string | null
-          user_metadata?: Json | null
-          version?: string | null
-        }
-        Update: {
-          bucket_id?: string | null
-          created_at?: string | null
-          id?: string
-          last_accessed_at?: string | null
-          metadata?: Json | null
-          name?: string | null
-          owner?: string | null
-          owner_id?: string | null
-          path_tokens?: string[] | null
-          updated_at?: string | null
-          user_metadata?: Json | null
-          version?: string | null
-        }
-        Relationships: [
-          {
-            foreignKeyName: "objects_bucketId_fkey"
-            columns: ["bucket_id"]
-            isOneToOne: false
-            referencedRelation: "buckets"
-            referencedColumns: ["id"]
-          },
-        ]
-      }
-      s3_multipart_uploads: {
-        Row: {
-          bucket_id: string
-          created_at: string
-          id: string
-          in_progress_size: number
-          key: string
-          metadata: Json | null
-          owner_id: string | null
-          upload_signature: string
-          user_metadata: Json | null
-          version: string
-        }
-        Insert: {
-          bucket_id: string
-          created_at?: string
-          id: string
-          in_progress_size?: number
-          key: string
-          metadata?: Json | null
-          owner_id?: string | null
-          upload_signature: string
-          user_metadata?: Json | null
-          version: string
-        }
-        Update: {
-          bucket_id?: string
-          created_at?: string
-          id?: string
-          in_progress_size?: number
-          key?: string
-          metadata?: Json | null
-          owner_id?: string | null
-          upload_signature?: string
-          user_metadata?: Json | null
-          version?: string
-        }
-        Relationships: [
-          {
-            foreignKeyName: "s3_multipart_uploads_bucket_id_fkey"
-            columns: ["bucket_id"]
-            isOneToOne: false
-            referencedRelation: "buckets"
-            referencedColumns: ["id"]
-          },
-        ]
-      }
-      s3_multipart_uploads_parts: {
-        Row: {
-          bucket_id: string
-          created_at: string
-          etag: string
-          id: string
-          key: string
-          owner_id: string | null
-          part_number: number
-          size: number
-          upload_id: string
-          version: string
-        }
-        Insert: {
-          bucket_id: string
-          created_at?: string
-          etag: string
-          id?: string
-          key: string
-          owner_id?: string | null
-          part_number: number
-          size?: number
-          upload_id: string
-          version: string
-        }
-        Update: {
-          bucket_id?: string
-          created_at?: string
-          etag?: string
-          id?: string
-          key?: string
-          owner_id?: string | null
-          part_number?: number
-          size?: number
-          upload_id?: string
-          version?: string
-        }
-        Relationships: [
-          {
-            foreignKeyName: "s3_multipart_uploads_parts_bucket_id_fkey"
-            columns: ["bucket_id"]
-            isOneToOne: false
-            referencedRelation: "buckets"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "s3_multipart_uploads_parts_upload_id_fkey"
-            columns: ["upload_id"]
-            isOneToOne: false
-            referencedRelation: "s3_multipart_uploads"
-            referencedColumns: ["id"]
-          },
-        ]
-      }
-      vector_indexes: {
-        Row: {
-          bucket_id: string
-          created_at: string
-          data_type: string
-          dimension: number
-          distance_metric: string
-          id: string
-          metadata_configuration: Json | null
-          name: string
-          updated_at: string
-        }
-        Insert: {
-          bucket_id: string
-          created_at?: string
-          data_type: string
-          dimension: number
-          distance_metric: string
-          id?: string
-          metadata_configuration?: Json | null
-          name: string
-          updated_at?: string
-        }
-        Update: {
-          bucket_id?: string
-          created_at?: string
-          data_type?: string
-          dimension?: number
-          distance_metric?: string
-          id?: string
-          metadata_configuration?: Json | null
-          name?: string
-          updated_at?: string
-        }
-        Relationships: [
-          {
-            foreignKeyName: "vector_indexes_bucket_id_fkey"
-            columns: ["bucket_id"]
-            isOneToOne: false
-            referencedRelation: "buckets_vectors"
-            referencedColumns: ["id"]
-          },
-        ]
-      }
-    }
-    Views: {
-      [_ in never]: never
-    }
-    Functions: {
-      allow_any_operation: {
-        Args: { expected_operations: string[] }
-        Returns: boolean
-      }
-      allow_only_operation: {
-        Args: { expected_operation: string }
-        Returns: boolean
-      }
-      can_insert_object: {
-        Args: { bucketid: string; metadata: Json; name: string; owner: string }
-        Returns: undefined
-      }
-      extension: { Args: { name: string }; Returns: string }
-      filename: { Args: { name: string }; Returns: string }
-      foldername: { Args: { name: string }; Returns: string[] }
-      get_common_prefix: {
-        Args: { p_delimiter: string; p_key: string; p_prefix: string }
-        Returns: string
-      }
-      get_size_by_bucket: {
-        Args: never
-        Returns: {
-          bucket_id: string
-          size: number
-        }[]
-      }
-      list_multipart_uploads_with_delimiter: {
-        Args: {
-          bucket_id: string
-          delimiter_param: string
-          max_keys?: number
-          next_key_token?: string
-          next_upload_token?: string
-          prefix_param: string
-        }
-        Returns: {
-          created_at: string
-          id: string
-          key: string
-        }[]
-      }
-      list_objects_with_delimiter: {
-        Args: {
-          _bucket_id: string
-          delimiter_param: string
-          max_keys?: number
-          next_token?: string
-          prefix_param: string
-          sort_order?: string
-          start_after?: string
-        }
-        Returns: {
-          created_at: string
-          id: string
-          last_accessed_at: string
-          metadata: Json
-          name: string
-          updated_at: string
-        }[]
-      }
-      operation: { Args: never; Returns: string }
-      search: {
-        Args: {
-          bucketname: string
-          levels?: number
-          limits?: number
-          offsets?: number
-          prefix: string
-          search?: string
-          sortcolumn?: string
-          sortorder?: string
-        }
-        Returns: {
-          created_at: string
-          id: string
-          last_accessed_at: string
-          metadata: Json
-          name: string
-          updated_at: string
-        }[]
-      }
-      search_by_timestamp: {
-        Args: {
-          p_bucket_id: string
-          p_level: number
-          p_limit: number
-          p_prefix: string
-          p_sort_column: string
-          p_sort_column_after: string
-          p_sort_order: string
-          p_start_after: string
-        }
-        Returns: {
-          created_at: string
-          id: string
-          key: string
-          last_accessed_at: string
-          metadata: Json
-          name: string
-          updated_at: string
-        }[]
-      }
-      search_v2: {
-        Args: {
-          bucket_name: string
-          levels?: number
-          limits?: number
-          prefix: string
-          sort_column?: string
-          sort_column_after?: string
-          sort_order?: string
-          start_after?: string
-        }
-        Returns: {
-          created_at: string
-          id: string
-          key: string
-          last_accessed_at: string
-          metadata: Json
-          name: string
-          updated_at: string
-        }[]
-      }
-    }
-    Enums: {
-      buckettype: "STANDARD" | "ANALYTICS" | "VECTOR"
+      simulation_market_status: "open" | "locked" | "resolved" | "void"
+      simulation_status: "draft" | "running" | "paused" | "archived"
+      staging_assignment_status: "pending" | "claimed" | "revoked"
+      staging_user_role: "user" | "game_designer"
     }
     CompositeTypes: {
       [_ in never]: never
@@ -2342,9 +2582,6 @@ export type CompositeTypes<
     : never
 
 export const Constants = {
-  graphql_public: {
-    Enums: {},
-  },
   public: {
     Enums: {
       avatar_id: [
@@ -2362,11 +2599,10 @@ export const Constants = {
       ],
       market_status: ["open", "resolved"],
       prediction_outcome: ["yes", "no"],
-    },
-  },
-  storage: {
-    Enums: {
-      buckettype: ["STANDARD", "ANALYTICS", "VECTOR"],
+      simulation_market_status: ["open", "locked", "resolved", "void"],
+      simulation_status: ["draft", "running", "paused", "archived"],
+      staging_assignment_status: ["pending", "claimed", "revoked"],
+      staging_user_role: ["user", "game_designer"],
     },
   },
 } as const

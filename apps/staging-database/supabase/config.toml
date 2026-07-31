@@ -1,0 +1,64 @@
+project_id = "nexthit-market-staging"
+
+[api]
+port = 55321
+schemas = ["public", "storage", "graphql_public"]
+extra_search_path = ["public", "extensions"]
+max_rows = 2000
+
+[db]
+port = 55322
+shadow_port = 55320
+major_version = 17
+
+[db.pooler]
+enabled = false
+port = 55329
+pool_mode = "transaction"
+default_pool_size = 20
+max_client_conn = 100
+
+[db.migrations]
+schema_paths = [
+  "./schemas/base/init.sql",
+  "./schemas/base/forecasts.sql",
+  "./schemas/staging.sql",
+]
+
+[studio]
+port = 55323
+
+[analytics]
+enabled = false
+port = 55327
+vector_port = 55328
+
+[inbucket]
+port = 55324
+smtp_port = 55325
+pop3_port = 55326
+
+[storage]
+file_size_limit = "50MiB"
+
+[auth]
+site_url = "http://localhost:3000"
+additional_redirect_urls = [
+  "http://localhost:3000/auth/callback",
+  "http://127.0.0.1:3000/auth/callback",
+  "https://staging.nexthitmarket.com/auth/callback",
+  "https://admin.staging.nexthitmarket.com/auth/callback",
+]
+jwt_expiry = 3600
+enable_signup = true
+
+[auth.email]
+enable_signup = true
+double_confirm_changes = true
+enable_confirmations = true
+
+[auth.external.google]
+enabled = false
+client_id = "env(SUPABASE_AUTH_EXTERNAL_GOOGLE_CLIENT_ID)"
+secret = "env(SUPABASE_AUTH_EXTERNAL_GOOGLE_SECRET)"
+redirect_uri = ""

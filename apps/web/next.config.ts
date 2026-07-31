@@ -22,8 +22,34 @@ if (isProductionBuild) {
   }
 
   const supabaseHost = new URL(supabaseUrl).hostname;
-  if (['127.0.0.1', 'localhost', '::1'].includes(supabaseHost)) {
+  const allowLocalStagingBuild = process.env.APP_ENV === 'staging'
+    && process.env.ALLOW_LOCAL_STAGING_BUILD === 'true';
+  if (['127.0.0.1', 'localhost', '::1'].includes(supabaseHost) && !allowLocalStagingBuild) {
     throw new Error('Production builds cannot use a local Supabase URL.');
+  }
+
+  if (process.env.APP_ENV === 'staging') {
+    const siteUrl = process.env.NEXT_PUBLIC_SITE_URL;
+    const secretKey = process.env.SUPABASE_SECRET_KEY ?? process.env.SUPABASE_SERVICE_ROLE_KEY;
+    const rootAdmins = process.env.ROOT_ADMIN_EMAILS;
+    if (!siteUrl || !secretKey || !rootAdmins) {
+      throw new Error('Staging builds require NEXT_PUBLIC_SITE_URL, SUPABASE_SECRET_KEY, and ROOT_ADMIN_EMAILS.');
+    }
+    const siteHost = new URL(siteUrl).hostname;
+    if (['nexthitmarket.com', 'www.nexthitmarket.com'].includes(siteHost)) {
+      throw new Error('Staging builds cannot use a production NextHit hostname.');
+    }
+    if (supabaseHost === 'azysnjlxrrvnkzntslqz.supabase.co') {
+      throw new Error('Staging builds cannot connect to the production Supabase project.');
+    }
+    if (process.env.ENABLE_GAME_MASTER_CONSOLE !== 'true' || process.env.ENABLE_STAGING_ROLE_ADMIN !== 'true') {
+      throw new Error('Both staging console feature flags must be enabled in the staging deployment.');
+    }
+  } else if (
+    process.env.ENABLE_GAME_MASTER_CONSOLE === 'true'
+    || process.env.ENABLE_STAGING_ROLE_ADMIN === 'true'
+  ) {
+    throw new Error('Internal staging consoles cannot be enabled outside APP_ENV=staging.');
   }
 }
 

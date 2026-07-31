@@ -1,0 +1,21 @@
+{
+  "name": "staging-database",
+  "private": true,
+  "version": "0.0.0",
+  "scripts": {
+    "sync-base-schema": "node scripts/sync-base-schemas.mjs",
+    "prestart": "pnpm sync-base-schema",
+    "start": "supabase start",
+    "stop": "supabase stop",
+    "status": "supabase status",
+    "predb:diff": "pnpm sync-base-schema",
+    "db:diff": "supabase db diff",
+    "predb:reset": "pnpm sync-base-schema",
+    "db:reset": "supabase db reset",
+    "test": "supabase test db",
+    "gen-types-local": "supabase gen types typescript --local --schema public > ../web/src/lib/database.types.ts"
+  },
+  "dependencies": {
+    "supabase": "^2.98.2"
+  }
+}
