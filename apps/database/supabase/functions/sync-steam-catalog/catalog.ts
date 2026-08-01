@@ -1,3 +1,5 @@
+import { hasReachedSteamReleaseDate } from "../_shared/steam-release-date.ts";
+
 export type WishlistLedgerEntry = {
   name?: unknown;
   state?: unknown;
@@ -22,12 +24,12 @@ export type SteamCatalogRow = {
   image_url: string;
   release_date: string | null;
   release_label: string;
-  lifecycle_status: 'upcoming' | 'released';
+  lifecycle_status: "upcoming" | "released";
   wishlist_rank: number | null;
   wishlist_estimate: string | null;
   pre_release_rank: number | null;
   is_wishlisted: boolean;
-  source: 'steam_wishlist_rank_v2';
+  source: "steam_wishlist_rank_v2";
   source_updated_at: string;
   last_seen_at: string;
   released_at: string | null;
@@ -36,7 +38,7 @@ export type SteamCatalogRow = {
 
 export type ExistingSteamCatalogRow = Pick<
   SteamCatalogRow,
-  'steam_app_id' | 'image_url' | 'release_date' | 'release_label' | 'tags'
+  "steam_app_id" | "image_url" | "release_date" | "release_label" | "tags"
 >;
 
 const MAX_STEAM_APP_ID = 999_999_999_999;
@@ -57,31 +59,37 @@ export function buildSteamCatalogRows({
   sourceUpdatedAt: string;
 }): SteamCatalogRow[] {
   const rows: SteamCatalogRow[] = [];
+  const asOfDate = now.slice(0, 10);
 
   for (const [rawAppId, rawEntry] of Object.entries(ledger)) {
     const appId = Number(rawAppId);
     const name = cleanName(rawEntry?.name);
     if (
-      !Number.isInteger(appId)
-      || appId <= 0
-      || appId > MAX_STEAM_APP_ID
-      || !name
-      || excludedAppIds.has(appId)
-    ) continue;
+      !Number.isInteger(appId) ||
+      appId <= 0 ||
+      appId > MAX_STEAM_APP_ID ||
+      !name ||
+      excludedAppIds.has(appId)
+    )
+      continue;
 
     const preReleaseRank = cleanRank(rawEntry?.preRelease?.rank);
     const estimate = cleanEstimate(rawEntry?.preRelease?.estimate);
     const details = detailsByAppId.get(appId);
     const existing = existingByAppId.get(appId);
-    const ledgerReleased = rawEntry?.state === 'released';
-    const released = ledgerReleased || details?.released === true;
-    const ledgerReleaseDate = ledgerReleased ? cleanIsoDate(rawEntry?.releaseDate) : null;
+    const ledgerReleaseDate =
+      rawEntry?.state === "released" ? cleanIsoDate(rawEntry?.releaseDate) : null;
+    const ledgerReleased =
+      rawEntry?.state === "released" && hasReachedSteamReleaseDate(ledgerReleaseDate, asOfDate);
+    const detailsReleased =
+      details?.released === true && hasReachedSteamReleaseDate(details.releaseDate, asOfDate);
+    const released = ledgerReleased || detailsReleased;
     const releaseDate = details
       ? details.releaseDate
-      : existing?.release_date ?? ledgerReleaseDate;
+      : (existing?.release_date ?? ledgerReleaseDate);
     const releaseLabel = details
       ? details.releaseLabel
-      : existing?.release_label ?? (releaseDate ? formatReleaseLabel(releaseDate) : 'TBA');
+      : (existing?.release_label ?? (releaseDate ? formatReleaseLabel(releaseDate) : "TBA"));
 
     rows.push({
       steam_app_id: appId,
@@ -89,15 +97,19 @@ export function buildSteamCatalogRows({
       image_url: details?.imageUrl ?? existing?.image_url ?? fallbackHeaderImage(appId),
       release_date: releaseDate,
       release_label: releaseLabel,
-      lifecycle_status: released ? 'released' : 'upcoming',
+      lifecycle_status: released ? "released" : "upcoming",
       wishlist_rank: released ? null : preReleaseRank,
       wishlist_estimate: released ? null : estimate,
       pre_release_rank: preReleaseRank,
       is_wishlisted: !released && preReleaseRank !== null,
-      source: 'steam_wishlist_rank_v2',
+      source: "steam_wishlist_rank_v2",
       source_updated_at: sourceUpdatedAt,
       last_seen_at: now,
-      released_at: released ? releaseDate ? `${releaseDate}T00:00:00.000Z` : sourceUpdatedAt : null,
+      released_at: released
+        ? releaseDate
+          ? `${releaseDate}T00:00:00.000Z`
+          : sourceUpdatedAt
+        : null,
       tags: details?.tags ?? existing?.tags ?? [],
     });
   }
@@ -105,12 +117,9 @@ export function buildSteamCatalogRows({
   return rows;
 }
 
-export function getTopUpcomingAppIds(
-  ledger: Record<string, WishlistLedgerEntry>,
-  limit: number,
-) {
+export function getTopUpcomingAppIds(ledger: Record<string, WishlistLedgerEntry>, limit: number) {
   return Object.entries(ledger)
-    .filter(([, entry]) => entry?.state === 'upcoming')
+    .filter(([, entry]) => entry?.state === "upcoming")
     .map(([appId, entry]) => ({ appId: Number(appId), rank: cleanRank(entry?.preRelease?.rank) }))
     .filter(
       (entry): entry is { appId: number; rank: number } =>
@@ -127,17 +136,17 @@ export function fallbackHeaderImage(appId: number) {
 
 export function formatReleaseLabel(isoDate: string) {
   const date = new Date(`${isoDate}T00:00:00.000Z`);
-  if (Number.isNaN(date.valueOf())) return 'TBA';
+  if (Number.isNaN(date.valueOf())) return "TBA";
 
-  return new Intl.DateTimeFormat('en-US', {
-    month: 'long',
-    day: 'numeric',
-    timeZone: 'UTC',
+  return new Intl.DateTimeFormat("en-US", {
+    month: "long",
+    day: "numeric",
+    timeZone: "UTC",
   }).format(date);
 }
 
 export function cleanIsoDate(value: unknown) {
-  if (typeof value !== 'string') return null;
+  if (typeof value !== "string") return null;
   const match = value.trim().match(/^(\d{4})-(\d{2})-(\d{2})$/);
   if (!match) return null;
   const normalized = `${match[1]}-${match[2]}-${match[3]}`;
@@ -148,8 +157,8 @@ export function cleanIsoDate(value: unknown) {
 }
 
 function cleanName(value: unknown) {
-  if (typeof value !== 'string') return null;
-  const name = value.replace(/\s+/g, ' ').trim();
+  if (typeof value !== "string") return null;
+  const name = value.replace(/\s+/g, " ").trim();
   return name ? name.slice(0, 250) : null;
 }
 
@@ -159,7 +168,7 @@ function cleanRank(value: unknown) {
 }
 
 function cleanEstimate(value: unknown) {
-  if (typeof value !== 'string') return null;
+  if (typeof value !== "string") return null;
   const estimate = value.trim();
   return estimate ? estimate.slice(0, 24) : null;
 }

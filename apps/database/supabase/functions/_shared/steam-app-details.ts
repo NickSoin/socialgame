@@ -1,6 +1,14 @@
-import { normalizeSteamReleaseMetadata, type SteamReleasePrecision } from "./steam-release-date.ts";
+import {
+  isSteamReleaseConfirmed,
+  normalizeSteamReleaseMetadata,
+  type SteamReleasePrecision,
+} from "./steam-release-date.ts";
 import { normalizeSteamAppType } from "./steam-catalog-eligibility.ts";
-import { extractSteamStoreTags, normalizeSteamGenres, type SteamStoreTagExtraction } from "./steam-tags.ts";
+import {
+  extractSteamStoreTags,
+  normalizeSteamGenres,
+  type SteamStoreTagExtraction,
+} from "./steam-tags.ts";
 import {
   selectSteamScreenshots,
   trustedSteamImageUrl,
@@ -46,29 +54,42 @@ export async function fetchSteamAppDetails(appId: number): Promise<SteamAppDetai
   url.searchParams.set("cc", "us");
   url.searchParams.set("l", "english");
 
-  const payload = await fetchJsonWithRetry<Record<string, {
-    success?: boolean;
-    data?: {
-      type?: unknown;
-      header_image?: unknown;
-      genres?: unknown;
-      screenshots?: unknown;
-      release_date?: { coming_soon?: unknown; date?: unknown };
-    };
-  }>>(url, 3);
+  const payload = await fetchJsonWithRetry<
+    Record<
+      string,
+      {
+        success?: boolean;
+        data?: {
+          type?: unknown;
+          header_image?: unknown;
+          genres?: unknown;
+          screenshots?: unknown;
+          release_date?: { coming_soon?: unknown; date?: unknown };
+        };
+      }
+    >
+  >(url, 3);
   const app = payload[String(appId)];
   if (!app?.success || !app.data) {
-    throw new SteamFetchError("app_not_available", `Steam appdetails has no data for app ${appId}`, 404);
+    throw new SteamFetchError(
+      "app_not_available",
+      `Steam appdetails has no data for app ${appId}`,
+      404,
+    );
   }
   const appType = normalizeSteamAppType(app.data.type);
   if (!appType) {
-    throw new SteamFetchError("missing_app_type", `Steam appdetails has no valid type for app ${appId}`);
+    throw new SteamFetchError(
+      "missing_app_type",
+      `Steam appdetails has no valid type for app ${appId}`,
+    );
   }
 
   const release = normalizeSteamReleaseMetadata(app.data.release_date?.date);
-  const comingSoon = typeof app.data.release_date?.coming_soon === "boolean"
-    ? app.data.release_date.coming_soon
-    : null;
+  const comingSoon =
+    typeof app.data.release_date?.coming_soon === "boolean"
+      ? app.data.release_date.coming_soon
+      : null;
   return {
     appType,
     imageUrl: trustedSteamImageUrl(app.data.header_image) ?? fallbackSteamHeaderImage(appId),
@@ -78,7 +99,7 @@ export async function fetchSteamAppDetails(appId: number): Promise<SteamAppDetai
     releasePrecision: release.precision,
     releaseInvalid: release.invalid,
     comingSoon,
-    released: comingSoon === false,
+    released: isSteamReleaseConfirmed(comingSoon, release.exactDate),
     genreFallback: normalizeSteamGenres(app.data.genres),
     screenshots: selectSteamScreenshots(app.data.screenshots),
   };
@@ -90,7 +111,8 @@ export async function fetchSteamStoreTags(appId: number): Promise<SteamStoreTagE
   url.searchParams.set("l", "english");
   const response = await fetchWithRetry(url, 3, {
     Accept: "text/html,application/xhtml+xml",
-    Cookie: "birthtime=315532801; lastagecheckage=1-January-1980; mature_content=1; wants_mature_content=1",
+    Cookie:
+      "birthtime=315532801; lastagecheckage=1-January-1980; mature_content=1; wants_mature_content=1",
   });
   assertTrustedFinalUrl(response.url, TRUSTED_STORE_HOSTS);
   return extractSteamStoreTags(await response.text());
@@ -107,14 +129,22 @@ export async function fetchSteamFollowerCount(appId: number): Promise<number | n
   );
   assertTrustedFinalUrl(response.url, TRUSTED_COMMUNITY_HOSTS);
   const xml = await response.text();
-  const rawCount = xml.match(/<memberCount>\s*(?:<!\[CDATA\[)?\s*([\d,]+)\s*(?:\]\]>)?\s*<\/memberCount>/i)?.[1];
+  const rawCount = xml.match(
+    /<memberCount>\s*(?:<!\[CDATA\[)?\s*([\d,]+)\s*(?:\]\]>)?\s*<\/memberCount>/i,
+  )?.[1];
   if (!rawCount) {
     if (!/<groupDetails>/i.test(xml)) return null;
-    throw new SteamFetchError("invalid_followers_xml", `Steam returned malformed followers XML for app ${appId}`);
+    throw new SteamFetchError(
+      "invalid_followers_xml",
+      `Steam returned malformed followers XML for app ${appId}`,
+    );
   }
   const count = Number(rawCount.replaceAll(",", ""));
   if (!Number.isSafeInteger(count) || count < 0) {
-    throw new SteamFetchError("invalid_follower_count", `Steam returned an invalid follower count for app ${appId}`);
+    throw new SteamFetchError(
+      "invalid_follower_count",
+      `Steam returned an invalid follower count for app ${appId}`,
+    );
   }
   return count;
 }
@@ -129,7 +159,11 @@ export function applySteamAppDetails<
     tags?: string[];
     tag_source?: string;
   },
->(row: T, details: SteamAppDetails, refreshedAt: string): T & {
+>(
+  row: T,
+  details: SteamAppDetails,
+  refreshedAt: string,
+): T & {
   image_url: string;
   release_date: string | null;
   release_label: string;
@@ -158,17 +192,17 @@ export function applySteamAppDetails<
     release_metadata_updated_at: refreshedAt,
     steam_app_type: details.appType,
     classification_updated_at: refreshedAt,
-    tags: keepStoreTags ? row.tags ?? [] : fallbackTags,
+    tags: keepStoreTags ? (row.tags ?? []) : fallbackTags,
     tag_source: keepStoreTags
       ? "steam_store_tags"
-      : fallbackTags.length ? "appdetails_genres_fallback" : "none",
+      : fallbackTags.length
+        ? "appdetails_genres_fallback"
+        : "none",
     lifecycle_status: released ? "released" : "upcoming",
     wishlist_rank: released ? null : row.wishlist_rank,
     wishlist_estimate: released ? null : row.wishlist_estimate,
     is_wishlisted: released ? false : row.is_wishlisted,
-    released_at: released
-      ? row.released_at ?? refreshedAt
-      : null,
+    released_at: released ? (row.released_at ?? refreshedAt) : null,
     steam_data_updated_at: refreshedAt,
     steam_data_attempted_at: refreshedAt,
   };
@@ -178,7 +212,7 @@ async function fetchJsonWithRetry<T>(url: URL, attempts: number): Promise<T> {
   const response = await fetchWithRetry(url, attempts, { Accept: "application/json" });
   assertTrustedFinalUrl(response.url, TRUSTED_STORE_HOSTS);
   try {
-    return await response.json() as T;
+    return (await response.json()) as T;
   } catch {
     throw new SteamFetchError("invalid_json", "Steam returned malformed JSON", response.status);
   }
@@ -220,13 +254,21 @@ async function fetchWithRetry(
       lastError = error;
       if (attempt < attempts) await delay(retryDelay(attempt, retryAfter));
     } catch (error) {
-      lastError = error instanceof SteamFetchError
-        ? error
-        : new SteamFetchError(
-          error instanceof DOMException && error.name === "AbortError" ? "timeout" : "network_error",
-          error instanceof Error ? error.message : String(error),
-        );
-      if (error instanceof SteamFetchError && error.status !== null && error.status < 500 && error.status !== 429) {
+      lastError =
+        error instanceof SteamFetchError
+          ? error
+          : new SteamFetchError(
+              error instanceof DOMException && error.name === "AbortError"
+                ? "timeout"
+                : "network_error",
+              error instanceof Error ? error.message : String(error),
+            );
+      if (
+        error instanceof SteamFetchError &&
+        error.status !== null &&
+        error.status < 500 &&
+        error.status !== 429
+      ) {
         throw error;
       }
       if (attempt < attempts) await delay(retryDelay(attempt, null));
@@ -240,7 +282,10 @@ async function fetchWithRetry(
 function assertTrustedFinalUrl(value: string, hosts: Set<string>) {
   const url = new URL(value);
   if (url.protocol !== "https:" || !hosts.has(url.hostname)) {
-    throw new SteamFetchError("untrusted_redirect", `Steam redirected to untrusted host ${url.hostname}`);
+    throw new SteamFetchError(
+      "untrusted_redirect",
+      `Steam redirected to untrusted host ${url.hostname}`,
+    );
   }
 }
 
@@ -249,7 +294,9 @@ function parseRetryAfter(value: string | null) {
   const seconds = Number(value);
   if (Number.isFinite(seconds) && seconds >= 0) return Math.min(Math.ceil(seconds), 3600);
   const date = Date.parse(value);
-  return Number.isNaN(date) ? null : Math.min(Math.max(Math.ceil((date - Date.now()) / 1000), 0), 3600);
+  return Number.isNaN(date)
+    ? null
+    : Math.min(Math.max(Math.ceil((date - Date.now()) / 1000), 0), 3600);
 }
 
 function retryDelay(attempt: number, retryAfterSeconds: number | null) {
