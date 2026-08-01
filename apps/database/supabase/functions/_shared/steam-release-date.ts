@@ -9,8 +9,18 @@ export type SteamReleaseMetadata = {
 };
 
 const MONTHS = new Map([
-  ["jan", 1], ["feb", 2], ["mar", 3], ["apr", 4], ["may", 5], ["jun", 6],
-  ["jul", 7], ["aug", 8], ["sep", 9], ["oct", 10], ["nov", 11], ["dec", 12],
+  ["jan", 1],
+  ["feb", 2],
+  ["mar", 3],
+  ["apr", 4],
+  ["may", 5],
+  ["jun", 6],
+  ["jul", 7],
+  ["aug", 8],
+  ["sep", 9],
+  ["oct", 10],
+  ["nov", 11],
+  ["dec", 12],
 ]);
 
 const VAGUE_RELEASE_TEXT = new Set([
@@ -46,7 +56,8 @@ function validIsoDate(year: number, month: number, day: number) {
     return null;
   }
   const normalized = `${year.toString().padStart(4, "0")}-${month
-    .toString().padStart(2, "0")}-${day.toString().padStart(2, "0")}`;
+    .toString()
+    .padStart(2, "0")}-${day.toString().padStart(2, "0")}`;
   const date = new Date(`${normalized}T00:00:00.000Z`);
   return !Number.isNaN(date.valueOf()) && date.toISOString().startsWith(normalized)
     ? normalized
@@ -116,6 +127,21 @@ export function normalizeSteamReleaseMetadata(value: unknown): SteamReleaseMetad
 
 export function normalizeSteamReleaseDate(value: unknown): string | null {
   return normalizeSteamReleaseMetadata(value).exactDate;
+}
+
+export function hasReachedSteamReleaseDate(
+  exactDate: string | null,
+  asOfDate = new Date().toISOString().slice(0, 10),
+) {
+  return exactDate === null || exactDate <= asOfDate;
+}
+
+export function isSteamReleaseConfirmed(
+  comingSoon: boolean | null,
+  exactDate: string | null,
+  asOfDate = new Date().toISOString().slice(0, 10),
+) {
+  return comingSoon === false && hasReachedSteamReleaseDate(exactDate, asOfDate);
 }
 
 export function formatSteamReleaseLabel(isoDate: string | null) {
