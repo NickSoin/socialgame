@@ -4,7 +4,7 @@ import { z } from "zod";
 import { getSteamFeedPageData } from "@/data/steam-feed-page";
 
 const loadSteamFeedPageSchema = z.object({
-  mode: z.enum(["upcoming", "trending", "completed", "involved"]),
+  mode: z.enum(["upcoming", "trending", "locked", "completed", "involved"]),
   page: z.number().int().positive().max(1_000),
   query: z.string().trim().max(80),
   status: z.enum(["open", "resolved"]),

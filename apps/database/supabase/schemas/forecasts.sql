@@ -957,6 +957,10 @@ CREATE TABLE public.steam_forecast_markets (
   percentile_model_id uuid NOT NULL REFERENCES public.steam_percentile_models(id) ON DELETE RESTRICT,
   percentile_model_version integer NOT NULL,
   scoring_start_at timestamptz NOT NULL,
+  resolution_attempt_count integer NOT NULL DEFAULT 0,
+  resolution_last_attempt_at timestamptz,
+  resolution_next_retry_at timestamptz,
+  resolution_last_error text,
   void_reason text,
   voided_at timestamptz,
   created_at timestamptz NOT NULL DEFAULT now(),
@@ -967,6 +971,12 @@ CREATE TABLE public.steam_forecast_markets (
   ),
   CONSTRAINT steam_forecast_markets_status_check CHECK (
     status IN ('open', 'locked', 'resolved', 'void')
+  ),
+  CONSTRAINT steam_forecast_markets_resolution_attempt_count_check CHECK (
+    resolution_attempt_count >= 0
+  ),
+  CONSTRAINT steam_forecast_markets_resolution_last_error_check CHECK (
+    resolution_last_error IS NULL OR char_length(resolution_last_error) <= 1000
   ),
   CONSTRAINT steam_forecast_markets_void_check CHECK (
     (status = 'void' AND void_reason IS NOT NULL AND voided_at IS NOT NULL)
@@ -1120,6 +1130,24 @@ CREATE TABLE public.steam_user_leaderboard_stats (
 CREATE INDEX steam_user_leaderboard_stats_rank_idx
   ON public.steam_user_leaderboard_stats (metric_type, rank_position);
 
+CREATE INDEX steam_forecast_markets_resolution_queue_idx
+  ON public.steam_forecast_markets (resolve_after, resolution_next_retry_at)
+  WHERE status = 'locked';
+
+CREATE TABLE public.steam_ccu_observations (
+  id bigint GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
+  market_id uuid NOT NULL REFERENCES public.steam_forecast_markets(id) ON DELETE CASCADE,
+  observed_at timestamptz NOT NULL,
+  player_count integer NOT NULL,
+  source_reference text NOT NULL,
+  created_at timestamptz NOT NULL DEFAULT now(),
+  CONSTRAINT steam_ccu_observations_player_count_check CHECK (player_count >= 0),
+  CONSTRAINT steam_ccu_observations_market_time_key UNIQUE (market_id, observed_at)
+);
+
+CREATE INDEX steam_ccu_observations_peak_idx
+  ON public.steam_ccu_observations (market_id, player_count DESC, observed_at);
+
 CREATE TRIGGER steam_forecast_markets_set_updated_at
   BEFORE UPDATE ON public.steam_forecast_markets
   FOR EACH ROW
@@ -1140,6 +1168,7 @@ ALTER TABLE public.steam_market_results ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.steam_score_runs ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.steam_prediction_score_entries ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.steam_user_leaderboard_stats ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.steam_ccu_observations ENABLE ROW LEVEL SECURITY;
 
 CREATE POLICY steam_forecast_markets_public_read
   ON public.steam_forecast_markets FOR SELECT TO anon, authenticated USING (true);
@@ -1266,10 +1295,14 @@ BEGIN
     source_release_date = game.release_date
   FROM public.steam_games AS game
   WHERE game.steam_app_id = market.steam_app_id
-    AND market.status = 'open'
+    AND market.status IN ('open', 'locked')
     AND (
       market.source_release_date IS DISTINCT FROM game.release_date
       OR market.lock_at IS DISTINCT FROM private.steam_metric_lock_at(game.release_date)
+      OR market.resolve_after IS DISTINCT FROM private.steam_metric_resolve_after(
+        market.metric_type,
+        game.release_date
+      )
     );
 
   UPDATE public.steam_forecast_markets AS market
@@ -1277,6 +1310,7 @@ BEGIN
   FROM public.steam_games AS game
   WHERE game.steam_app_id = market.steam_app_id
     AND market.status = 'open'
+    AND game.lifecycle_status = 'upcoming'
     AND game.is_wishlisted = false;
 
   UPDATE public.steam_bets AS bet
@@ -1707,9 +1741,48 @@ BEGIN
     ON membership.snapshot_id = snapshot.id
   WHERE snapshot.market_id = market.id AND snapshot.eligible_prediction_count >= 2;
 
-  UPDATE public.steam_forecast_markets SET status = 'resolved' WHERE id = market.id;
+  UPDATE public.steam_forecast_markets
+  SET
+    status = 'resolved',
+    resolution_attempt_count = 0,
+    resolution_last_attempt_at = p_resolved_at,
+    resolution_next_retry_at = NULL,
+    resolution_last_error = NULL
+  WHERE id = market.id;
   PERFORM public.rebuild_steam_leaderboard_stats();
   RETURN saved_result;
+END;
+$$;
+
+CREATE OR REPLACE FUNCTION public.record_steam_market_resolution_failure(
+  p_market_id uuid,
+  p_error text,
+  p_next_retry_at timestamptz
+)
+RETURNS void
+LANGUAGE plpgsql
+SECURITY DEFINER
+SET search_path = ''
+AS $$
+BEGIN
+  IF NOT private.steam_is_internal_actor() THEN
+    RAISE EXCEPTION 'administrator access required' USING ERRCODE = '42501';
+  END IF;
+  IF nullif(trim(p_error), '') IS NULL OR p_next_retry_at IS NULL THEN
+    RAISE EXCEPTION 'error and retry timestamp are required' USING ERRCODE = '22023';
+  END IF;
+
+  UPDATE public.steam_forecast_markets
+  SET
+    resolution_attempt_count = resolution_attempt_count + 1,
+    resolution_last_attempt_at = now(),
+    resolution_next_retry_at = p_next_retry_at,
+    resolution_last_error = left(trim(p_error), 1000)
+  WHERE id = p_market_id AND status = 'locked';
+
+  IF NOT FOUND THEN
+    RAISE EXCEPTION 'locked forecast market not found' USING ERRCODE = 'P0002';
+  END IF;
 END;
 $$;
 
@@ -1959,8 +2032,68 @@ BEGIN
     market.resolve_after, market.status
   FROM public.steam_forecast_markets AS market
   JOIN public.steam_games AS game ON game.steam_app_id = market.steam_app_id
-  WHERE market.status = 'locked' AND market.resolve_after <= now()
+  WHERE market.status = 'locked'
+    AND market.resolve_after <= now()
+    AND game.lifecycle_status = 'released'
+    AND (market.resolution_next_retry_at IS NULL OR market.resolution_next_retry_at <= now())
   ORDER BY market.resolve_after, market.steam_app_id, market.metric_type;
+END;
+$$;
+
+CREATE OR REPLACE FUNCTION public.get_steam_released_game_feed(
+  p_lifecycle text,
+  p_query text DEFAULT '',
+  p_limit integer DEFAULT 12,
+  p_offset integer DEFAULT 0
+)
+RETURNS TABLE (steam_app_id bigint, total_rows bigint)
+LANGUAGE plpgsql
+STABLE
+SECURITY DEFINER
+SET search_path = ''
+AS $$
+BEGIN
+  IF p_lifecycle NOT IN ('locked', 'completed') THEN
+    RAISE EXCEPTION 'unsupported released game lifecycle' USING ERRCODE = '22023';
+  END IF;
+  IF p_limit < 1 OR p_limit > 50 OR p_offset < 0 THEN
+    RAISE EXCEPTION 'invalid pagination' USING ERRCODE = '22023';
+  END IF;
+
+  RETURN QUERY
+  WITH classified AS (
+    SELECT
+      game.steam_app_id,
+      game.name,
+      game.released_at,
+      game.release_date,
+      game.pre_release_rank,
+      CASE
+        WHEN count(market.id) = 3
+          AND bool_and(market.status IN ('resolved', 'void')) THEN 'completed'
+        ELSE 'locked'
+      END AS market_lifecycle
+    FROM public.steam_games AS game
+    LEFT JOIN public.steam_forecast_markets AS market
+      ON market.steam_app_id = game.steam_app_id
+    WHERE game.lifecycle_status = 'released' AND game.pre_release_rank IS NOT NULL
+    GROUP BY game.steam_app_id, game.name, game.released_at, game.release_date,
+      game.pre_release_rank
+  ), filtered AS (
+    SELECT * FROM classified
+    WHERE market_lifecycle = p_lifecycle
+      AND (
+        nullif(trim(p_query), '') IS NULL
+        OR position(lower(trim(p_query)) IN lower(name)) > 0
+      )
+  )
+  SELECT filtered.steam_app_id, count(*) OVER ()
+  FROM filtered
+  ORDER BY filtered.released_at DESC NULLS LAST,
+    filtered.release_date DESC NULLS LAST,
+    filtered.pre_release_rank ASC NULLS LAST,
+    filtered.steam_app_id
+  LIMIT p_limit OFFSET p_offset;
 END;
 $$;
 
@@ -1974,6 +2107,7 @@ REVOKE ALL ON TABLE public.steam_market_results FROM PUBLIC, anon, authenticated
 REVOKE ALL ON TABLE public.steam_score_runs FROM PUBLIC, anon, authenticated;
 REVOKE ALL ON TABLE public.steam_prediction_score_entries FROM PUBLIC, anon, authenticated;
 REVOKE ALL ON TABLE public.steam_user_leaderboard_stats FROM PUBLIC, anon, authenticated;
+REVOKE ALL ON TABLE public.steam_ccu_observations FROM PUBLIC, anon, authenticated;
 GRANT SELECT ON TABLE public.steam_forecast_markets TO anon, authenticated;
 GRANT SELECT ON TABLE public.steam_prediction_versions TO authenticated;
 GRANT SELECT ON TABLE public.steam_market_results TO anon, authenticated;
@@ -1989,6 +2123,7 @@ GRANT ALL ON TABLE public.steam_market_results TO service_role;
 GRANT ALL ON TABLE public.steam_score_runs TO service_role;
 GRANT ALL ON TABLE public.steam_prediction_score_entries TO service_role;
 GRANT ALL ON TABLE public.steam_user_leaderboard_stats TO service_role;
+GRANT ALL ON TABLE public.steam_ccu_observations TO service_role;
 
 DROP POLICY steam_bets_insert_own ON public.steam_bets;
 REVOKE INSERT ON TABLE public.steam_bets FROM authenticated;
@@ -2007,6 +2142,8 @@ REVOKE ALL ON FUNCTION public.process_steam_market_cycle() FROM PUBLIC, anon, au
 REVOKE ALL ON FUNCTION public.get_steam_prediction_states(bigint[]) FROM PUBLIC;
 REVOKE ALL ON FUNCTION public.get_steam_points_leaderboard(text, integer, integer) FROM PUBLIC;
 REVOKE ALL ON FUNCTION public.get_steam_resolution_queue() FROM PUBLIC, anon;
+REVOKE ALL ON FUNCTION public.record_steam_market_resolution_failure(uuid, text, timestamptz) FROM PUBLIC, anon, authenticated;
+REVOKE ALL ON FUNCTION public.get_steam_released_game_feed(text, text, integer, integer) FROM PUBLIC;
 GRANT EXECUTE ON FUNCTION public.ensure_steam_points_system() TO service_role;
 GRANT EXECUTE ON FUNCTION public.steam_percentile_value(text, integer, numeric) TO anon, authenticated, service_role;
 GRANT EXECUTE ON FUNCTION public.sync_steam_forecast_markets() TO service_role;
@@ -2021,3 +2158,5 @@ GRANT EXECUTE ON FUNCTION public.process_steam_market_cycle() TO service_role;
 GRANT EXECUTE ON FUNCTION public.get_steam_prediction_states(bigint[]) TO anon, authenticated, service_role;
 GRANT EXECUTE ON FUNCTION public.get_steam_points_leaderboard(text, integer, integer) TO anon, authenticated, service_role;
 GRANT EXECUTE ON FUNCTION public.get_steam_resolution_queue() TO authenticated, service_role;
+GRANT EXECUTE ON FUNCTION public.record_steam_market_resolution_failure(uuid, text, timestamptz) TO service_role;
+GRANT EXECUTE ON FUNCTION public.get_steam_released_game_feed(text, text, integer, integer) TO anon, authenticated, service_role;

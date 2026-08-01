@@ -20,6 +20,7 @@ export type StagingWorkspaceMarket = {
 export type StagingWorkspaceGame = {
   steamAppId: number;
   simulationGameId: string;
+  locked: boolean;
   completed: boolean;
   markets: StagingWorkspaceMarket[];
 };

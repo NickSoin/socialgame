@@ -6,8 +6,9 @@ import {
   getSteamPredictionStates,
 } from "@/data/steam-bets";
 import {
-  getSteamCompletedGamesPage,
   getSteamCatalogGamesByIds,
+  getSteamCatalogGamesByIdsAnyLifecycle,
+  getSteamReleasedGamesPage,
   searchSteamCatalogGamesPage,
 } from "@/data/steam-game-catalog";
 import { getSteamPopularUpcoming } from "@/data/steam-popular-upcoming";
@@ -39,8 +40,8 @@ export async function getSteamFeedPageData({
           offset,
         })
       : getSteamPopularUpcoming({ limit: STEAM_FEED_PAGE_SIZE, offset })
-    : mode === "completed"
-      ? getSteamCompletedGamesPage(searchQuery, {
+    : mode === "locked" || mode === "completed"
+      ? getSteamReleasedGamesPage(mode, searchQuery, {
           limit: STEAM_FEED_PAGE_SIZE,
           offset,
         })
@@ -61,11 +62,12 @@ export async function getSteamFeedPageData({
     catalogPagePromise,
   ]);
 
-  const liveGames = catalogPage?.games ?? await getSteamCatalogGamesByIds(
-    mode === "trending"
-      ? trends.map((trend) => trend.steam_app_id)
-      : userState.bets.map((bet) => bet.steam_app_id),
-  );
+  const fallbackAppIds = mode === "trending"
+    ? trends.map((trend) => trend.steam_app_id)
+    : userState.bets.map((bet) => bet.steam_app_id);
+  const liveGames = catalogPage?.games ?? await (mode === "involved"
+    ? getSteamCatalogGamesByIdsAnyLifecycle(fallbackAppIds)
+    : getSteamCatalogGamesByIds(fallbackAppIds));
   const predictionStates = await getSteamPredictionStates(liveGames.map((game) => game.appId)).catch(
     (error: unknown) => {
       console.error("Could not load forecast states.", error);
@@ -90,7 +92,7 @@ export async function getSteamFeedPageData({
     : feed;
   const totalGames = catalogPage?.total ?? filteredGames.length;
   const pageCount = getSteamFeedPageCount(totalGames);
-  const games = mode === "upcoming" || mode === "completed"
+  const games = mode === "upcoming" || mode === "locked" || mode === "completed"
     ? filteredGames
     : paginateSteamFeed(filteredGames, safePage);
 

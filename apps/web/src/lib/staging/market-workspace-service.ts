@@ -405,10 +405,13 @@ export async function getStagingWorkspaceData(principal: StagingPrincipal): Prom
   const games = simulationGames.flatMap((game) => {
     if (game.steam_app_id === null) return [];
     const markets = marketsByGame.get(game.id) ?? [];
+    const completed = markets.length === METRICS.length
+      && markets.every((market) => market.status === 'resolved' || market.status === 'void');
     return [{
       steamAppId: Number(game.steam_app_id),
       simulationGameId: game.id,
-      completed: markets.length === METRICS.length && markets.every((market) => market.status === 'resolved' || market.status === 'void'),
+      locked: !completed && markets.some((market) => market.status !== 'open'),
+      completed,
       markets: markets.map((market) => {
         const forecasts = activeForecasts.filter((forecast) => forecast.market_id === market.id);
         return {

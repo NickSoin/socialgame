@@ -18,6 +18,7 @@ const MAX_BATCH_SIZE = 200;
 const DETAILS_CONCURRENCY = 6;
 const UPSERT_BATCH_SIZE = 100;
 const RELEASE_REFRESH_MS = 30 * 60 * 60 * 1000;
+const RELEASE_WATCH_REFRESH_MS = 20 * 60 * 1000;
 const SLOW_REFRESH_MS = 8 * 24 * 60 * 60 * 1000;
 
 type SteamGameRow = {
@@ -252,6 +253,22 @@ async function selectCandidates(
     .limit(limit);
   if (classificationError) throw classificationError;
   if (unclassifiedGames?.length) return unclassifiedGames as SteamGameRow[];
+
+  const releaseWatchCutoff = new Date(now.valueOf() - RELEASE_WATCH_REFRESH_MS).toISOString();
+  const today = now.toISOString().slice(0, 10);
+  const { data: releaseWatchGames, error: releaseWatchError } = await supabase
+    .from("steam_games")
+    .select("*")
+    .eq("is_wishlisted", true)
+    .eq("lifecycle_status", "upcoming")
+    .eq("release_precision", "exact")
+    .lte("release_date", today)
+    .or(`steam_data_attempted_at.is.null,steam_data_attempted_at.lt.${releaseWatchCutoff}`)
+    .order("release_date", { ascending: true })
+    .order("wishlist_rank", { ascending: true, nullsFirst: false })
+    .limit(limit);
+  if (releaseWatchError) throw releaseWatchError;
+  if (releaseWatchGames?.length) return releaseWatchGames as SteamGameRow[];
 
   const releaseCutoff = new Date(now.valueOf() - RELEASE_REFRESH_MS).toISOString();
   const slowCutoff = new Date(now.valueOf() - SLOW_REFRESH_MS).toISOString();

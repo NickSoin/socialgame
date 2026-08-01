@@ -6,7 +6,7 @@ import {
   type SteamPredictionState,
 } from "./steam-bets";
 
-export type SteamFeedMode = "upcoming" | "trending" | "completed" | "involved";
+export type SteamFeedMode = "upcoming" | "trending" | "locked" | "completed" | "involved";
 
 export function buildSteamFeed({
   mode,
@@ -34,14 +34,19 @@ export function buildSteamFeed({
   const predictionStates = new Map(
     states.map((state) => [`${state.steam_app_id}:${state.metric_type}`, state]),
   );
+  const isCompleted = (game: SteamUpcomingGame) => {
+    if (game.lifecycleStatus !== "released") return false;
+    const gameStates = states.filter((state) => state.steam_app_id === game.appId);
+    return gameStates.length === game.targets.length
+      && gameStates.every((state) => state.market_status === "resolved" || state.market_status === "void");
+  };
 
   let result = [...liveGames];
   if (mode === "upcoming" || mode === "trending") {
     result = result.filter((game) => game.lifecycleStatus === "upcoming");
   }
-  if (mode === "completed") {
-    result = result.filter((game) => game.lifecycleStatus === "released");
-  }
+  if (mode === "locked") result = result.filter((game) => game.lifecycleStatus === "released" && !isCompleted(game));
+  if (mode === "completed") result = result.filter(isCompleted);
   if (mode === "involved") result = result.filter((game) => involvedIds.has(game.appId));
   if (mode === "trending") {
     result.sort((a, b) => (trendCounts.get(b.appId) ?? 0) - (trendCounts.get(a.appId) ?? 0));

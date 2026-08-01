@@ -26,6 +26,23 @@ const game = (appId: number, name: string): SteamUpcomingGame => ({
   })),
 });
 
+const marketStates = (
+  appId: number,
+  statuses: Array<"open" | "locked" | "resolved" | "void">,
+) => STEAM_BET_TARGETS.map((target, index) => ({
+  steam_app_id: appId,
+  metric_type: target.key,
+  market_status: statuses[index] ?? "open",
+  lock_at: "2026-08-01T00:00:00Z",
+  resolve_after: "2026-08-31T00:00:00Z",
+  user_raw_value: null,
+  user_percentile_value: null,
+  actual_raw_value: null,
+  actual_percentile_value: null,
+  points: 0,
+  scored_days: 0,
+}));
+
 describe("buildSteamFeed", () => {
   it("sorts trending games by total bets", () => {
     const games = buildSteamFeed({
@@ -77,18 +94,27 @@ describe("buildSteamFeed", () => {
     }
   });
 
-  it("puts only released games in the completed feed", () => {
+  it("keeps released games locked until every market is terminal", () => {
     const upcoming = game(1, "Upcoming");
     const released = { ...game(2, "Released"), lifecycleStatus: "released" as const };
 
-    const games = buildSteamFeed({
+    const lockedGames = buildSteamFeed({
+      mode: "locked",
+      liveGames: [upcoming, released],
+      bets: [],
+      trends: [],
+      states: marketStates(2, ["resolved", "locked", "locked"]),
+    });
+    const completedGames = buildSteamFeed({
       mode: "completed",
       liveGames: [upcoming, released],
       bets: [],
       trends: [],
+      states: marketStates(2, ["resolved", "resolved", "void"]),
     });
 
-    expect(games.map(({ appId }) => appId)).toEqual([released.appId]);
+    expect(lockedGames.map(({ appId }) => appId)).toEqual([released.appId]);
+    expect(completedGames.map(({ appId }) => appId)).toEqual([released.appId]);
   });
 
   it("keeps only canonical catalog games in the involved feed and restores locked values", () => {

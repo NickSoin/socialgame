@@ -6,6 +6,7 @@ import {
   ChevronDown,
   CircleCheckBig,
   CircleDot,
+  LockKeyhole,
   Search,
   SlidersHorizontal,
   Trash2,
@@ -31,7 +32,7 @@ import type {
   StagingWorkspacePlayer,
 } from '@/lib/staging/market-workspace-types';
 
-type FeedMode = 'upcoming' | 'trending' | 'completed' | 'involved';
+type FeedMode = 'upcoming' | 'trending' | 'locked' | 'completed' | 'involved';
 type ForecastStatus = 'open' | 'resolved';
 
 const compactNumber = new Intl.NumberFormat('en-US', {
@@ -50,6 +51,7 @@ const DEFAULT_RESOLUTION_VALUES: Record<SteamBetTargetKey, string> = {
 const TABS: Array<{ id: FeedMode; label: string; icon: typeof TrendingUp }> = [
   { id: 'trending', label: 'Trending', icon: TrendingUp },
   { id: 'upcoming', label: 'Popular upcoming', icon: CalendarDays },
+  { id: 'locked', label: 'Locked', icon: LockKeyhole },
   { id: 'completed', label: 'Completed', icon: CircleCheckBig },
   { id: 'involved', label: 'My forecasts', icon: CircleDot },
 ];
@@ -66,7 +68,7 @@ function mergeGameState(
 ): SteamUpcomingGame {
   return {
     ...game,
-    lifecycleStatus: state?.completed ? 'released' : 'upcoming',
+    lifecycleStatus: state?.locked || state?.completed ? 'released' : 'upcoming',
     targets: game.targets.map((target) => {
       const market = state?.markets.find((item) => item.metricType === target.key);
       return {
@@ -411,7 +413,7 @@ function StagingGameCard({
 }) {
   const [previewActive, setPreviewActive] = useState(false);
   const [resolutionValues, setResolutionValues] = useState(DEFAULT_RESOLUTION_VALUES);
-  const completed = game.lifecycleStatus === 'released';
+  const completed = game.targets.every((target) => target.marketStatus === 'resolved' || target.marketStatus === 'void');
   const parsedResolutionValues = {
     first_weekend_ccu: parseSteamBetDraft('first_weekend_ccu', resolutionValues.first_weekend_ccu),
     first_month_reviews: parseSteamBetDraft('first_month_reviews', resolutionValues.first_month_reviews),
@@ -560,7 +562,8 @@ export function StagingMarketApp({ initialData }: { initialData: StagingWorkspac
       const state = stateByAppId.get(game.appId);
       const predictionCount = state?.markets.reduce((sum, market) => sum + market.predictionCount, 0) ?? 0;
       if (normalizedQuery) return game.name.toLocaleLowerCase('en-US').includes(normalizedQuery);
-      if (mode === 'upcoming') return data.popularAppIds.includes(game.appId) && !state?.completed;
+      if (mode === 'upcoming') return data.popularAppIds.includes(game.appId) && !state?.locked && !state?.completed;
+      if (mode === 'locked') return state?.locked && !state.completed;
       if (mode === 'completed') return state?.completed;
       if (mode === 'involved') {
         const hasPlayerForecast = state?.markets.some((market) => market.forecasts.some((forecast) => forecast.playerId === activePlayerId));
@@ -569,7 +572,7 @@ export function StagingMarketApp({ initialData }: { initialData: StagingWorkspac
           ? state?.markets.some((market) => market.status === 'resolved')
           : state?.markets.some((market) => market.status !== 'resolved' && market.status !== 'void');
       }
-      return !state?.completed
+      return !state?.locked && !state?.completed
         && game.lifecycleStatus === 'upcoming'
         && (predictionCount > 0 || data.trendingAppIds.includes(game.appId));
     });
@@ -650,8 +653,8 @@ export function StagingMarketApp({ initialData }: { initialData: StagingWorkspac
               </div>
             ) : (
               <div className="sb-empty">
-                <h1>{query ? 'No games found' : mode === 'completed' ? 'No completed games yet' : mode === 'involved' ? 'No forecasts here' : 'No games yet'}</h1>
-                <p>{mode === 'completed' ? 'Resolve a game from another tab to move it here.' : 'Use the game manipulation controls to populate staging.'}</p>
+                <h1>{query ? 'No games found' : mode === 'locked' ? 'No locked games yet' : mode === 'completed' ? 'No completed games yet' : mode === 'involved' ? 'No forecasts here' : 'No games yet'}</h1>
+                <p>{mode === 'locked' ? 'Released games with unresolved markets appear here.' : mode === 'completed' ? 'Resolve every market to move a game here.' : 'Use the game manipulation controls to populate staging.'}</p>
               </div>
             )}
           </main>

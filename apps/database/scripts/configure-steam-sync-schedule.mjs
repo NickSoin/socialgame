@@ -13,6 +13,7 @@ const jobs = [
   ["sync-steam-popular-every-3-hours", "17 */3 * * *", "sync-steam-popular"],
   ["sync-steam-details-every-10-minutes", "2,12,22,32,42,52 * * * *", "sync-steam-details"],
   ["sync-steam-followers-throughout-day", "1-59/4 * * * *", "sync-steam-followers"],
+  ["resolve-steam-markets-every-5-minutes", "4-59/5 * * * *", "resolve-steam-markets"],
 ];
 const databaseJobs = [
   ["steam-market-cycle-every-5-minutes", "*/5 * * * *", "SELECT public.process_steam_market_cycle()"],

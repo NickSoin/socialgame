@@ -2262,6 +2262,18 @@ export type Database = {
           steam_app_id: number
         }[]
       }
+      get_steam_released_game_feed: {
+        Args: {
+          p_lifecycle: string
+          p_limit?: number
+          p_offset?: number
+          p_query?: string
+        }
+        Returns: {
+          steam_app_id: number
+          total_rows: number
+        }[]
+      }
       is_current_user_admin: { Args: never; Returns: boolean }
       lock_due_steam_forecast_markets: { Args: never; Returns: number }
       place_prediction: {
@@ -2612,4 +2624,3 @@ export const Constants = {
     },
   },
 } as const
-

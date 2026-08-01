@@ -10,6 +10,7 @@ import { PointsLeaderboard } from "./points-leaderboard";
 const TITLES: Record<SteamFeedMode, string> = {
   upcoming: "Popular upcoming Steam games",
   trending: "Trending Steam games",
+  locked: "Locked Steam games",
   completed: "Completed Steam games",
   involved: "My forecasts",
 };
@@ -71,6 +72,8 @@ export async function SteamFeedPage({
                 ? "No games found"
                 : mode === "involved"
                   ? "No forecasts here"
+                  : mode === "locked"
+                    ? "No locked games yet"
                   : mode === "completed"
                     ? "No completed games yet"
                     : "No games yet"}</h1>

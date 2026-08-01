@@ -92,3 +92,6 @@ verify_jwt = false
 
 [functions.sync-steam-followers]
 verify_jwt = false
+
+[functions.resolve-steam-markets]
+verify_jwt = false

@@ -21,6 +21,7 @@ describe("Steam feed pagination", () => {
     expect(buildSteamFeedHref({ mode: "involved", status: "resolved" }))
       .toBe("/involved?status=resolved");
     expect(buildSteamFeedHref({ mode: "trending" })).toBe("/trending");
+    expect(buildSteamFeedHref({ mode: "locked" })).toBe("/locked");
     expect(buildSteamFeedHref({ mode: "completed" })).toBe("/completed");
   });
 });

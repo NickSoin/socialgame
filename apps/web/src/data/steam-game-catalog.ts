@@ -5,7 +5,7 @@ import type { SteamUpcomingGame } from "@/lib/steam-bets";
 import { toSteamUpcomingGame } from "@/lib/steam-game-catalog";
 
 const CATALOG_FIELDS =
-  "steam_app_id,name,image_url,release_date,release_label,release_precision,tags,lifecycle_status,wishlist_rank,pre_release_rank,source_updated_at,follower_count,followers_updated_at,steam_game_media(kind,position,storage_bucket,storage_path,active)" as const;
+  "steam_app_id,name,image_url,release_date,release_label,release_precision,tags,lifecycle_status,is_wishlisted,wishlist_rank,pre_release_rank,source_updated_at,follower_count,followers_updated_at,steam_game_media(kind,position,storage_bucket,storage_path,active)" as const;
 
 export type SteamCatalogPage = {
   games: SteamUpcomingGame[];
@@ -74,34 +74,47 @@ export async function getSteamPopularUpcomingGames(
   return { games, total: count ?? games.length };
 }
 
-export async function getSteamCompletedGamesPage(
+export async function getSteamReleasedGamesPage(
+  lifecycle: "locked" | "completed",
   query = "",
   options: SteamCatalogPageOptions = {},
 ): Promise<SteamCatalogPage> {
   const normalizedQuery = query.trim().slice(0, 80);
-  const escapedQuery = normalizedQuery.replace(/[\\%_]/g, "\\$&");
   const { from, to } = getPageRange(options);
+  const limit = to - from + 1;
   const supabase = createPublicCatalogClient();
-  let request = supabase
-    .from("steam_games")
-    .select(CATALOG_FIELDS, { count: "exact" })
-    .eq("lifecycle_status", "released");
+  const { data: feedRows, error: feedError } = await supabase.rpc(
+    "get_steam_released_game_feed",
+    { p_lifecycle: lifecycle, p_query: normalizedQuery, p_limit: limit, p_offset: from },
+  );
 
-  if (escapedQuery) request = request.ilike("name", `%${escapedQuery}%`);
-
-  const { data, error, count } = await request
-    .order("released_at", { ascending: false, nullsFirst: false })
-    .order("release_date", { ascending: false, nullsFirst: false })
-    .order("pre_release_rank", { ascending: true, nullsFirst: false })
-    .range(from, to);
-
-  if (error) {
-    console.error("Could not load completed Steam games.", error);
+  if (feedError) {
+    console.error(`Could not load ${lifecycle} Steam games.`, feedError);
     return { games: [], total: 0 };
   }
 
-  const games = (data ?? []).map(toSteamUpcomingGame);
-  return { games, total: count ?? games.length };
+  const appIds = (feedRows ?? []).map((row) => Number(row.steam_app_id));
+  const total = Number(feedRows?.[0]?.total_rows ?? 0);
+  if (!appIds.length) return { games: [], total };
+
+  const { data, error } = await supabase
+    .from("steam_games")
+    .select(CATALOG_FIELDS)
+    .in("steam_app_id", appIds);
+  if (error) {
+    console.error(`Could not hydrate ${lifecycle} Steam games.`, error);
+    return { games: [], total: 0 };
+  }
+
+  const gamesById = new Map((data ?? []).map((row) => [Number(row.steam_app_id), toSteamUpcomingGame(row)]));
+  return { games: appIds.flatMap((appId) => gamesById.get(appId) ?? []), total };
+}
+
+export async function getSteamCompletedGamesPage(
+  query = "",
+  options: SteamCatalogPageOptions = {},
+): Promise<SteamCatalogPage> {
+  return getSteamReleasedGamesPage("completed", query, options);
 }
 
 export async function getSteamCatalogGamesByIds(appIds: number[]) {
@@ -132,7 +145,6 @@ export async function getSteamCatalogGamesByIdsAnyLifecycle(appIds: number[]) {
   const { data, error } = await supabase
     .from("steam_games")
     .select(CATALOG_FIELDS)
-    .eq("is_wishlisted", true)
     .in("steam_app_id", uniqueAppIds);
 
   if (error) {
@@ -140,7 +152,11 @@ export async function getSteamCatalogGamesByIdsAnyLifecycle(appIds: number[]) {
     return [];
   }
 
-  return (data ?? []).map(toSteamUpcomingGame);
+  return (data ?? [])
+    .filter((row) => row.lifecycle_status === "upcoming"
+      ? row.is_wishlisted
+      : row.pre_release_rank !== null)
+    .map(toSteamUpcomingGame);
 }
 
 export async function searchSteamCatalogGames(
