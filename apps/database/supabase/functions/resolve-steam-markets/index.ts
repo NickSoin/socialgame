@@ -128,19 +128,46 @@ async function resolutionValueForMarket(
     return await fetchSteamResolutionValue(market.metric_type, Number(market.steam_app_id));
   } catch (error) {
     if (market.metric_type !== "first_weekend_ccu") throw error;
-    const { data, error: observationError, count } = await supabase
+    const [{ data: observations, error: observationError }, { data: marketData, error: marketError }] = await Promise.all([
+      supabase
       .from("steam_ccu_observations")
-      .select("player_count,observed_at,source_reference", { count: "exact" })
+      .select("player_count,observed_at,source_reference")
       .eq("market_id", market.market_id)
-      .order("player_count", { ascending: false })
       .order("observed_at", { ascending: true })
-      .limit(1);
+      .limit(1_000),
+      supabase
+        .from("steam_forecast_markets")
+        .select("resolve_after,steam_games!inner(released_at)")
+        .eq("id", market.market_id)
+        .single(),
+    ]);
     if (observationError) throw observationError;
-    const peak = data?.[0];
-    if (!peak || !count) throw error;
+    if (marketError) throw marketError;
+    const game = Array.isArray(marketData.steam_games)
+      ? marketData.steam_games[0]
+      : marketData.steam_games;
+    const releasedAt = Date.parse(game?.released_at ?? "");
+    const resolveAfter = Date.parse(marketData.resolve_after ?? market.resolve_after);
+    const firstObservedAt = Date.parse(observations?.[0]?.observed_at ?? "");
+    const lastObservedAt = Date.parse(observations?.at(-1)?.observed_at ?? "");
+    const expectedSamples = Math.max(
+      1,
+      Math.floor((resolveAfter - firstObservedAt) / 300_000) + 1,
+    );
+    const hasCompleteCoverage = Number.isFinite(releasedAt)
+      && Number.isFinite(resolveAfter)
+      && Number.isFinite(firstObservedAt)
+      && Number.isFinite(lastObservedAt)
+      && firstObservedAt <= releasedAt + 30 * 60 * 1000
+      && lastObservedAt >= resolveAfter - 15 * 60 * 1000
+      && (observations?.length ?? 0) >= Math.ceil(expectedSamples * 0.7);
+    if (!hasCompleteCoverage || !observations?.length) throw error;
+    const peak = observations.reduce((current, observation) =>
+      observation.player_count > current.player_count ? observation : current
+    );
     return {
       value: Number(peak.player_count),
-      sourceReference: `${peak.source_reference}#observed-first-weekend-peak;samples=${count};peak-at=${encodeURIComponent(peak.observed_at)}`,
+      sourceReference: `${peak.source_reference}#observed-first-weekend-peak;samples=${observations.length};peak-at=${encodeURIComponent(peak.observed_at)}`,
     };
   }
 }

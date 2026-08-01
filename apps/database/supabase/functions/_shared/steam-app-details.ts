@@ -167,7 +167,7 @@ export function applySteamAppDetails<
     wishlist_estimate: released ? null : row.wishlist_estimate,
     is_wishlisted: released ? false : row.is_wishlisted,
     released_at: released
-      ? details.releaseDate ? `${details.releaseDate}T00:00:00.000Z` : refreshedAt
+      ? row.released_at ?? refreshedAt
       : null,
     steam_data_updated_at: refreshedAt,
     steam_data_attempted_at: refreshedAt,
