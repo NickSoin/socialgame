@@ -2069,7 +2069,7 @@ BEGIN
       game.release_date,
       game.pre_release_rank,
       CASE
-        WHEN count(market.id) = 3
+        WHEN count(market.id) > 0
           AND bool_and(market.status IN ('resolved', 'void')) THEN 'completed'
         ELSE 'locked'
       END AS market_lifecycle
