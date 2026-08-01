@@ -17,6 +17,7 @@ const UPSERT_BATCH_SIZE = 500;
 const SHARD_CONCURRENCY = 16;
 const RUNNING_LOCK_MS = 20 * 60 * 1000;
 const ELIGIBILITY_POLICY_VERSION = 'games-on-or-after-2026-07-30';
+const RELEASE_STATE_POLICY_VERSION = 'future-exact-date-guard-v1';
 
 type SourceMeta = {
   schemaVersion?: unknown;
@@ -211,6 +212,7 @@ Deno.serve(async (request) => {
       releasedCount,
       excludedCount: excludedAppIds.size,
       eligibilityPolicyVersion: ELIGIBILITY_POLICY_VERSION,
+      releaseStatePolicyVersion: RELEASE_STATE_POLICY_VERSION,
       preservedSteamDetailsCount: existingByAppId.size,
     });
   } catch (error) {
