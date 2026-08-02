@@ -7,8 +7,8 @@ const runIntegration = process.env.RUN_STAGING_INTEGRATION === 'true';
 
 describe.skipIf(!runIntegration)('staging simulation service integration', () => {
   it('runs a deterministic simulation through forecasts, snapshots, lock, resolution, correction and scoring', async () => {
-    const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
-    const secret = process.env.SUPABASE_SECRET_KEY;
+    const url = process.env.STAGING_SUPABASE_URL;
+    const secret = process.env.STAGING_SUPABASE_SECRET_KEY;
     if (!url || !secret) throw new Error('Staging integration environment is missing.');
     const admin = createClient(url, secret, { auth: { autoRefreshToken: false, persistSession: false } });
     const email = `integration-${Date.now()}@test.local`;
@@ -119,8 +119,8 @@ describe.skipIf(!runIntegration)('staging simulation service integration', () =>
   }, 120_000);
 
   it('runs a blank isolated simulation through designer-controlled lifecycle operations', async () => {
-    const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
-    const secret = process.env.SUPABASE_SECRET_KEY;
+    const url = process.env.STAGING_SUPABASE_URL;
+    const secret = process.env.STAGING_SUPABASE_SECRET_KEY;
     if (!url || !secret) throw new Error('Staging integration environment is missing.');
     const admin = createClient(url, secret, { auth: { autoRefreshToken: false, persistSession: false } });
     const email = `blank-${Date.now()}@test.local`;

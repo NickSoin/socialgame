@@ -30,7 +30,12 @@ export function SignUp({ next }: { next?: string }) {
       <section className="sb-auth-card" aria-labelledby="auth-title">
         <h1 id="auth-title">Check your email</h1>
         <p className="sb-auth-note">Use the confirmation link to finish creating your NextHit Market account.</p>
-        <Link className="sb-auth-primary-link" href="/login">Back to sign in</Link>
+        <Link
+          className="sb-auth-primary-link"
+          href={next ? `/login?next=${encodeURIComponent(next)}` : '/login'}
+        >
+          Back to sign in
+        </Link>
       </section>
     );
   }
@@ -43,7 +48,11 @@ export function SignUp({ next }: { next?: string }) {
         onSubmit={(event) => {
           event.preventDefault();
           const data = new FormData(event.currentTarget);
-          execute({ email: String(data.get('email')), password: String(data.get('password')) });
+          execute({
+            email: String(data.get('email')),
+            password: String(data.get('password')),
+            next,
+          });
         }}
       >
         <label>Email<input autoComplete="email" name="email" required type="email" /></label>

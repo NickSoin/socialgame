@@ -56,6 +56,65 @@ function rootEmails() {
   );
 }
 
+async function syncUniversalUserRole(userId: string, email: string) {
+  const admin = createStagingAdminClient();
+  const seed = await admin.from('staging_user_roles').upsert({
+    user_id: userId,
+    role: 'user',
+  }, { onConflict: 'user_id', ignoreDuplicates: true });
+  if (seed.error) throw new Error(seed.error.message);
+
+  const [roleResult, pendingResult] = await Promise.all([
+    admin.from('staging_user_roles').select('role').eq('user_id', userId).single(),
+    admin
+      .from('staging_pending_role_assignments')
+      .select('*')
+      .eq('email', email)
+      .eq('status', 'pending')
+      .order('requested_at', { ascending: false })
+      .limit(1)
+      .maybeSingle(),
+  ]);
+  if (roleResult.error) throw new Error(roleResult.error.message);
+  if (pendingResult.error) throw new Error(pendingResult.error.message);
+
+  const pending = pendingResult.data;
+  if (!pending) return roleResult.data.role;
+
+  const claimedAt = new Date().toISOString();
+  const saveRole = await admin.from('staging_user_roles').upsert({
+    user_id: userId,
+    role: pending.role,
+    granted_by: pending.requested_by,
+    granted_at: claimedAt,
+  }, { onConflict: 'user_id' });
+  if (saveRole.error) throw new Error(saveRole.error.message);
+
+  const claim = await admin
+    .from('staging_pending_role_assignments')
+    .update({ status: 'claimed', claimed_by: userId, claimed_at: claimedAt })
+    .eq('id', pending.id)
+    .eq('status', 'pending')
+    .select('id')
+    .maybeSingle();
+  if (claim.error) throw new Error(claim.error.message);
+
+  if (claim.data) {
+    const audit = await admin.from('staging_role_audit_log').insert({
+      actor_user_id: pending.requested_by,
+      action: 'assignment_claimed',
+      target_user_id: userId,
+      target_email: email,
+      previous_role: roleResult.data.role,
+      new_role: pending.role,
+      metadata: { assignment_id: pending.id, source: 'universal_auth_login' },
+    });
+    if (audit.error) throw new Error(audit.error.message);
+  }
+
+  return pending.role;
+}
+
 export function isRootAdminEmail(email: string | null | undefined) {
   return Boolean(email && rootEmails().has(email.trim().toLowerCase()));
 }
@@ -96,15 +155,9 @@ export async function requireStagingPrincipal(
   }
 
   const isRoot = rootEmails().has(email);
-  const admin = createStagingAdminClient();
-  const { data: storedRole, error: roleError } = await admin
-    .from('staging_user_roles')
-    .select('role')
-    .eq('user_id', user.id)
-    .maybeSingle();
-  if (roleError) throw new Error(roleError.message);
+  const storedRole = await syncUniversalUserRole(user.id, email);
 
-  const role = isRoot ? 'root' : storedRole?.role === 'game_designer' ? 'game_designer' : 'user';
+  const role = isRoot ? 'root' : storedRole === 'game_designer' ? 'game_designer' : 'user';
   const allowed = feature === 'role-admin' ? isRoot : isRoot || role === 'game_designer';
   if (!allowed) {
     await writeDeniedAudit(email, feature, `role_${role}`);

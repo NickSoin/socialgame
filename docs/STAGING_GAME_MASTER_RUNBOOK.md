@@ -2,30 +2,32 @@
 
 ## Environment boundary
 
-The sandbox is a separate deployment backed by a separate Supabase instance. Never point it at the production project (`azysnjlxrrvnkzntslqz`). The production site must keep both staging feature flags disabled.
+The sandbox is a separate deployment with an isolated staging-data Supabase instance. Authentication and the public game catalog intentionally come from the production Supabase project (`azysnjlxrrvnkzntslqz`) so one NextHit account works on the main site and all staging subdomains. The production site must keep both staging feature flags disabled.
 
 Required staging environment:
 
 ```dotenv
 APP_ENV=staging
 NEXT_PUBLIC_SITE_URL=https://staging.nexthitmarket.com
-NEXT_PUBLIC_SUPABASE_URL=https://<staging-project>.supabase.co
-NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY=<staging-publishable-key>
-SUPABASE_SECRET_KEY=<staging-secret-key>
+NEXT_PUBLIC_SUPABASE_URL=https://<production-project>.supabase.co
+NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY=<production-publishable-key>
+SUPABASE_SECRET_KEY=<production-secret-key>
+STAGING_SUPABASE_URL=https://<staging-project>.supabase.co
+STAGING_SUPABASE_SECRET_KEY=<staging-secret-key>
 ENABLE_GAME_MASTER_CONSOLE=true
 ENABLE_STAGING_ROLE_ADMIN=true
 ROOT_ADMIN_EMAILS=<verified-owner-email>
 STAGING_ALLOWED_HOSTS=staging.nexthitmarket.com,admin.staging.nexthitmarket.com
 ```
 
-`SUPABASE_SECRET_KEY` and root emails are server-only. Do not prefix either with `NEXT_PUBLIC_`. Staging email, analytics, outbound webhooks, and production jobs are disabled. The production build rejects staging flags, and the staging build rejects the production Supabase host and production website hostname.
+Both secret keys and root emails are server-only. Do not prefix them with `NEXT_PUBLIC_`. Production Auth handles email and OAuth; staging analytics, outbound webhooks, and production jobs remain disabled. The staging build requires shared production Auth plus a different staging-data host and rejects the production website hostname.
 
 ## Local setup
 
 1. From the repository root run `pnpm i`.
 2. Start the isolated stack with `pnpm --filter staging-database start`.
 3. Reset it with `pnpm --filter staging-database db:reset`.
-4. Read the local URL and keys with `pnpm --filter staging-database status` and put them in `.env.staging.local` using `.env.staging.example` as the template.
+4. Read the local URL and keys with `pnpm --filter staging-database status` and put them in `.env.staging.local` using `.env.staging.example` as the template. For isolated local QA, the same local project may fill both the universal Auth and staging-data variables.
 5. For local production-build QA only set `ALLOW_LOCAL_STAGING_BUILD=true`. Never set it remotely.
 6. Start the web app with the staging environment loaded.
 
@@ -50,11 +52,11 @@ game, Popular Upcoming, and media counts.
 
 ## Access model
 
-- Every verified Supabase Auth user starts as `user`.
+- Every verified universal NextHit Auth user starts as `user` in staging.
 - A `game_designer` can access `/internal/game-master`.
 - A root administrator is derived only from `ROOT_ADMIN_EMAILS`; `root` is not a database enum value and cannot be granted, stored, or revoked through the UI.
 - Root opens `/internal/staging-admin` to search Auth users, grant/revoke `game_designer`, create or revoke pending email assignments, and inspect the append-only audit trail.
-- A pending assignment is claimed automatically after the matching email becomes verified.
+- A pending assignment is claimed automatically the first time the matching verified universal account opens staging.
 - Every protected request rechecks the database role. Revocation therefore applies on the next request without waiting for a token refresh.
 - Denied access attempts are appended to the role audit log.
 
@@ -92,6 +94,6 @@ The browser release checklist is: unauthenticated redirect, verified root login,
 
 ## Deployment
 
-Deploy the web app as its own staging project and the database as its own Supabase project or persistent branch. Add both staging callback URLs to Supabase Auth and Google OAuth. Route `staging.nexthitmarket.com` and `admin.staging.nexthitmarket.com` to the staging web deployment; the admin hostname redirects its root to `/internal/staging-admin`.
+Deploy the web app as its own staging project and the database as its own Supabase project or persistent branch. Add both staging callback URLs to the production Supabase Auth redirect allow-list. Google continues to callback through that same production Auth project. Route `staging.nexthitmarket.com` and `admin.staging.nexthitmarket.com` to the staging web deployment; the admin hostname redirects its root to `/internal/staging-admin`.
 
-Never attach the production hostname to this deployment, copy production service keys into it, enable production cron jobs, or reuse production Auth users. Backups and cleanup are independent from production.
+Never attach the production hostname to this deployment, point `STAGING_SUPABASE_URL` at production, or enable production cron jobs. Only the universal Auth/catalog credentials are shared; staging simulations, role assignments, backups, and cleanup remain independent from production.

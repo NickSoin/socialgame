@@ -16,6 +16,6 @@
     "gen-types-local": "supabase gen types typescript --local --schema public > ../web/src/lib/database.types.ts"
   },
   "dependencies": {
-    "supabase": "^2.98.2"
+    "supabase": "2.98.2"
   }
 }

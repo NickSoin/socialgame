@@ -3,27 +3,6 @@ BEGIN;
 CREATE EXTENSION IF NOT EXISTS pgtap WITH SCHEMA extensions;
 SELECT plan(17);
 
-CREATE SCHEMA IF NOT EXISTS tests;
-CREATE OR REPLACE FUNCTION tests.create_staging_user(
-  p_user_id uuid,
-  p_email text,
-  p_confirmed boolean DEFAULT true
-)
-RETURNS void
-LANGUAGE sql
-AS $$
-  INSERT INTO auth.users (
-    instance_id, id, aud, role, email, encrypted_password, email_confirmed_at,
-    raw_app_meta_data, raw_user_meta_data, created_at, updated_at
-  ) VALUES (
-    '00000000-0000-0000-0000-000000000000', p_user_id,
-    'authenticated', 'authenticated', p_email,
-    extensions.crypt('Password123!', extensions.gen_salt('bf')),
-    CASE WHEN p_confirmed THEN now() ELSE NULL END,
-    '{"provider":"email","providers":["email"]}', '{}'::jsonb, now(), now()
-  );
-$$;
-
 SELECT has_table('public', 'staging_user_roles', 'staging user roles table exists');
 SELECT has_table('public', 'staging_role_audit_log', 'append-only role audit exists');
 SELECT has_table('public', 'simulations', 'simulation aggregate exists');
@@ -35,40 +14,41 @@ SELECT throws_ok(
   'root cannot be represented in the database role enum'
 );
 
-SELECT tests.create_staging_user(
-  '11111111-1111-1111-1111-111111111111',
-  'ordinary@test.local'
-);
+INSERT INTO public.staging_user_roles(user_id, role)
+VALUES ('11111111-1111-1111-1111-111111111111', 'user');
 SELECT is(
   (SELECT role::text FROM public.staging_user_roles WHERE user_id = '11111111-1111-1111-1111-111111111111'),
   'user',
-  'verified signup receives the default user role'
+  'an external universal account can receive the default user role'
 );
 
 INSERT INTO public.staging_pending_role_assignments(email, role)
 VALUES ('designer@test.local', 'game_designer');
-SELECT tests.create_staging_user(
-  '22222222-2222-2222-2222-222222222222',
-  'designer@test.local'
-);
+INSERT INTO public.staging_user_roles(user_id, role)
+VALUES ('22222222-2222-2222-2222-222222222222', 'game_designer');
+UPDATE public.staging_pending_role_assignments
+SET status = 'claimed',
+    claimed_by = '22222222-2222-2222-2222-222222222222',
+    claimed_at = now()
+WHERE email = 'designer@test.local';
 SELECT is(
   (SELECT role::text FROM public.staging_user_roles WHERE user_id = '22222222-2222-2222-2222-222222222222'),
   'game_designer',
-  'verified signup claims a pending game designer assignment'
+  'an external universal account can receive game designer access'
 );
 SELECT is(
   (SELECT status::text FROM public.staging_pending_role_assignments WHERE email = 'designer@test.local'),
   'claimed',
-  'pending assignment is atomically marked claimed'
+  'pending assignment supports an external universal account ID'
 );
 
 SET LOCAL ROLE authenticated;
 SELECT set_config('request.jwt.claim.sub', '11111111-1111-1111-1111-111111111111', true);
 SELECT set_config('request.jwt.claim.role', 'authenticated', true);
-SELECT is(
-  (SELECT count(*) FROM public.staging_user_roles),
-  0::bigint,
-  'authenticated users see no staging role rows through RLS'
+SELECT throws_ok(
+  $$SELECT count(*) FROM public.staging_user_roles$$,
+  '42501', NULL,
+  'authenticated users cannot read staging role rows directly'
 );
 SELECT throws_ok(
   $$INSERT INTO public.simulations(name, simulation_time, random_seed, created_by)
