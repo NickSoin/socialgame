@@ -1,6 +1,7 @@
 import 'server-only';
 import type { User } from '@supabase/supabase-js';
-import { createStagingAdminClient } from './admin-client';
+import type { Json } from '@/lib/database.types';
+import { createStagingAdminClient, createUniversalAuthAdminClient } from './admin-client';
 import { isRootAdminEmail } from './access';
 import type { StagingPrincipal } from './types';
 
@@ -9,11 +10,11 @@ function assertNoError(error: { message: string } | null, context: string) {
 }
 
 async function listAllUsers() {
-  const client = createStagingAdminClient();
+  const client = createUniversalAuthAdminClient();
   const users: User[] = [];
   for (let page = 1; page <= 20; page += 1) {
     const { data, error } = await client.auth.admin.listUsers({ page, perPage: 1_000 });
-    assertNoError(error, 'Could not list staging auth users');
+    assertNoError(error, 'Could not list universal auth users');
     users.push(...data.users);
     if (data.users.length < 1_000) break;
   }
@@ -22,16 +23,17 @@ async function listAllUsers() {
 
 export async function getRoleAdminData(query = '') {
   const client = createStagingAdminClient();
+  const authClient = createUniversalAuthAdminClient();
   const normalizedQuery = query.trim().toLowerCase();
   const [allUsers, rolesResult, profilesResult, pendingResult, auditResult] = await Promise.all([
     listAllUsers(),
     client.from('staging_user_roles').select('*'),
-    client.from('profiles').select('id,username,display_name'),
+    authClient.from('profiles').select('id,username,display_name'),
     client.from('staging_pending_role_assignments').select('*').order('requested_at', { ascending: false }).limit(100),
     client.from('staging_role_audit_log').select('*').order('created_at', { ascending: false }).limit(200),
   ]);
   assertNoError(rolesResult.error, 'Could not load staging roles');
-  assertNoError(profilesResult.error, 'Could not load staging profiles');
+  assertNoError(profilesResult.error, 'Could not load universal profiles');
   assertNoError(pendingResult.error, 'Could not load pending role assignments');
   assertNoError(auditResult.error, 'Could not load role audit log');
   const roleMap = new Map((rolesResult.data ?? []).map((row) => [row.user_id, row.role]));
@@ -93,7 +95,7 @@ async function audit(
   target: { id?: string; email?: string },
   previousRole: 'user' | 'game_designer' | null,
   newRole: 'user' | 'game_designer' | null,
-  metadata: Record<string, unknown> = {},
+  metadata: Json = {},
 ) {
   const client = createStagingAdminClient();
   const { error } = await client.from('staging_role_audit_log').insert({
@@ -147,10 +149,11 @@ export async function grantGameDesigner(emailInput: string, principal: StagingPr
 
 export async function revokeGameDesigner(userId: string, principal: StagingPrincipal) {
   const client = createStagingAdminClient();
-  const { data, error } = await client.auth.admin.getUserById(userId);
-  assertNoError(error, 'Could not find staging user');
+  const authClient = createUniversalAuthAdminClient();
+  const { data, error } = await authClient.auth.admin.getUserById(userId);
+  assertNoError(error, 'Could not find universal user');
   const user = data.user;
-  if (!user) throw new Error('Staging user not found.');
+  if (!user) throw new Error('Universal user not found.');
   const email = user.email?.trim().toLowerCase() ?? '';
   if (isRootAdminEmail(email)) throw new Error('Root is environment-derived and cannot be revoked.');
   const current = await client.from('staging_user_roles').select('role').eq('user_id', userId).maybeSingle();
@@ -170,6 +173,7 @@ export async function revokePendingAssignment(assignmentId: string, principal: S
   const client = createStagingAdminClient();
   const current = await client.from('staging_pending_role_assignments').select('*').eq('id', assignmentId).eq('status', 'pending').single();
   assertNoError(current.error, 'Pending assignment not found');
+  if (!current.data) throw new Error('Pending assignment not found.');
   if (isRootAdminEmail(current.data.email)) throw new Error('Root assignments are not supported.');
   const save = await client.from('staging_pending_role_assignments').update({
     status: 'revoked',

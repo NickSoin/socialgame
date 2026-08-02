@@ -2,6 +2,7 @@ import { createServerClient } from "@supabase/ssr";
 import { cookies } from "next/headers";
 import { NextRequest, NextResponse } from "next/server";
 import { sanitizeAuthRedirect } from "@/utils/auth-redirect";
+import { getAuthCookieOptions } from "@/supabase-clients/cookie-options";
 
 export async function GET(req: NextRequest): Promise<NextResponse> {
   const { searchParams } = new URL(req.url);
@@ -14,6 +15,7 @@ export async function GET(req: NextRequest): Promise<NextResponse> {
       process.env.NEXT_PUBLIC_SUPABASE_URL,
       process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY,
       {
+        cookieOptions: getAuthCookieOptions(),
         cookies: {
           getAll() {
             return cookieStore.getAll();

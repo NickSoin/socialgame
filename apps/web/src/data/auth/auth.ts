@@ -10,6 +10,7 @@ import { sanitizeAuthRedirect } from "@/utils/auth-redirect";
 const signUpSchema = z.object({
   email: z.string().email(),
   password: passwordSchema,
+  next: z.string().optional(),
 });
 
 /**
@@ -22,14 +23,18 @@ const signUpSchema = z.object({
  */
 export const signUpAction = actionClient
   .schema(signUpSchema)
-  .action(async ({ parsedInput: { email, password } }) => {
+  .action(async ({ parsedInput: { email, password, next } }) => {
     const supabase = await createSupabaseClient();
+    const redirectUrl = new URL(toSiteURL("/auth/callback"));
+    if (next) {
+      redirectUrl.searchParams.set("next", sanitizeAuthRedirect(next));
+    }
 
     const { data, error } = await supabase.auth.signUp({
       email,
       password,
       options: {
-        emailRedirectTo: toSiteURL("/auth/callback"),
+        emailRedirectTo: redirectUrl.toString(),
       },
     });
 

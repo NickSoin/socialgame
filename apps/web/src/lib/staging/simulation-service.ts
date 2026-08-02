@@ -1245,7 +1245,7 @@ export async function executeSimulationCommand(command: SimulationCommand, princ
     case 'update_game': {
       const current = await client.from('simulation_games').select('*').eq('simulation_id', simulation.id).eq('id', command.gameId).single();
       assertNoError(current.error, 'Simulation game not found');
-      const changes: JsonRecord = {};
+      const changes: { name?: string; release_at?: string } = {};
       if (command.name) changes.name = command.name.trim();
       if (command.releaseAt) changes.release_at = new Date(command.releaseAt).toISOString();
       const saved = await client.from('simulation_games').update(changes).eq('simulation_id', simulation.id).eq('id', command.gameId).select('*').single();

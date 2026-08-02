@@ -15,9 +15,11 @@ CREATE TYPE public.simulation_market_status AS ENUM ('open', 'locked', 'resolved
 -- =============================================================================
 
 CREATE TABLE public.staging_user_roles (
-  user_id uuid PRIMARY KEY REFERENCES auth.users(id) ON DELETE CASCADE,
+  -- User IDs come from the shared production Auth project. They intentionally
+  -- cannot reference this isolated staging project's auth.users table.
+  user_id uuid PRIMARY KEY,
   role public.staging_user_role NOT NULL DEFAULT 'user',
-  granted_by uuid REFERENCES auth.users(id) ON DELETE SET NULL,
+  granted_by uuid,
   granted_at timestamptz NOT NULL DEFAULT now(),
   updated_at timestamptz NOT NULL DEFAULT now()
 );
@@ -27,11 +29,11 @@ CREATE TABLE public.staging_pending_role_assignments (
   email text NOT NULL,
   role public.staging_user_role NOT NULL,
   status public.staging_assignment_status NOT NULL DEFAULT 'pending',
-  requested_by uuid REFERENCES auth.users(id) ON DELETE SET NULL,
+  requested_by uuid,
   requested_at timestamptz NOT NULL DEFAULT now(),
-  claimed_by uuid REFERENCES auth.users(id) ON DELETE SET NULL,
+  claimed_by uuid,
   claimed_at timestamptz,
-  revoked_by uuid REFERENCES auth.users(id) ON DELETE SET NULL,
+  revoked_by uuid,
   revoked_at timestamptz,
   CONSTRAINT staging_pending_email_normalized_check CHECK (
     email = lower(btrim(email)) AND email ~ '^[^@[:space:]]+@[^@[:space:]]+$'
@@ -85,6 +87,23 @@ BEGIN
 END;
 $$;
 
+-- Compatibility shim for the bootstrap migration. Universal authentication is
+-- synchronized by the application against the isolated staging tables, so the
+-- auth.users trigger is intentionally absent from the desired schema.
+CREATE OR REPLACE FUNCTION private.sync_staging_user_role()
+RETURNS trigger
+LANGUAGE plpgsql
+SECURITY DEFINER
+SET search_path = ''
+AS $$
+BEGIN
+  RETURN NEW;
+END;
+$$;
+
+COMMENT ON FUNCTION private.sync_staging_user_role() IS
+  'Deprecated compatibility shim; staging roles are synchronized from universal Auth by the web application.';
+
 CREATE TRIGGER staging_role_audit_append_only
   BEFORE UPDATE OR DELETE ON public.staging_role_audit_log
   FOR EACH ROW EXECUTE FUNCTION private.reject_staging_append_only_mutation();
@@ -92,59 +111,6 @@ CREATE TRIGGER staging_role_audit_append_only
 CREATE TRIGGER staging_user_roles_set_updated_at
   BEFORE UPDATE ON public.staging_user_roles
   FOR EACH ROW EXECUTE FUNCTION private.set_updated_at();
-
-CREATE OR REPLACE FUNCTION private.sync_staging_user_role()
-RETURNS trigger
-LANGUAGE plpgsql
-SECURITY DEFINER
-SET search_path = ''
-AS $$
-DECLARE
-  pending_assignment public.staging_pending_role_assignments%ROWTYPE;
-BEGIN
-  INSERT INTO public.staging_user_roles(user_id, role)
-  VALUES (NEW.id, 'user')
-  ON CONFLICT (user_id) DO NOTHING;
-
-  IF NEW.email_confirmed_at IS NULL OR NEW.email IS NULL THEN
-    RETURN NEW;
-  END IF;
-
-  SELECT * INTO pending_assignment
-  FROM public.staging_pending_role_assignments
-  WHERE email = lower(btrim(NEW.email)) AND status = 'pending'
-  ORDER BY requested_at DESC
-  LIMIT 1
-  FOR UPDATE;
-
-  IF FOUND THEN
-    UPDATE public.staging_user_roles
-    SET role = pending_assignment.role,
-        granted_by = pending_assignment.requested_by,
-        granted_at = now()
-    WHERE user_id = NEW.id;
-
-    UPDATE public.staging_pending_role_assignments
-    SET status = 'claimed', claimed_by = NEW.id, claimed_at = now()
-    WHERE id = pending_assignment.id;
-
-    INSERT INTO public.staging_role_audit_log(
-      actor_user_id, action, target_user_id, target_email,
-      previous_role, new_role, metadata
-    ) VALUES (
-      pending_assignment.requested_by, 'assignment_claimed', NEW.id,
-      lower(btrim(NEW.email)), 'user', pending_assignment.role,
-      jsonb_build_object('assignment_id', pending_assignment.id, 'source', 'verified_signup')
-    );
-  END IF;
-
-  RETURN NEW;
-END;
-$$;
-
-CREATE TRIGGER on_auth_user_staging_role_sync
-  AFTER INSERT OR UPDATE OF email, email_confirmed_at ON auth.users
-  FOR EACH ROW EXECUTE FUNCTION private.sync_staging_user_role();
 
 -- =============================================================================
 -- Simulation aggregate and clock
@@ -161,7 +127,7 @@ CREATE TABLE public.simulations (
   archived_at timestamptz,
   random_seed bigint NOT NULL,
   config jsonb NOT NULL DEFAULT '{}'::jsonb,
-  created_by uuid NOT NULL REFERENCES auth.users(id) ON DELETE RESTRICT,
+  created_by uuid NOT NULL,
   created_at timestamptz NOT NULL DEFAULT now(),
   updated_at timestamptz NOT NULL DEFAULT now(),
   CONSTRAINT simulations_name_check CHECK (char_length(btrim(name)) BETWEEN 1 AND 100),
@@ -331,7 +297,7 @@ CREATE TABLE public.simulation_results (
   resolved_at timestamptz NOT NULL,
   correction_note text,
   is_current boolean NOT NULL DEFAULT true,
-  created_by uuid NOT NULL REFERENCES auth.users(id) ON DELETE RESTRICT,
+  created_by uuid NOT NULL,
   created_at timestamptz NOT NULL DEFAULT now(),
   CONSTRAINT simulation_results_raw_check CHECK (actual_raw_value >= 0),
   CONSTRAINT simulation_results_percentile_check CHECK (actual_percentile_value BETWEEN 0 AND 100),
@@ -351,7 +317,7 @@ CREATE TABLE public.simulation_score_runs (
   reason text NOT NULL,
   formula_key text NOT NULL DEFAULT 'canonical',
   is_current boolean NOT NULL DEFAULT true,
-  created_by uuid NOT NULL REFERENCES auth.users(id) ON DELETE RESTRICT,
+  created_by uuid NOT NULL,
   created_at timestamptz NOT NULL DEFAULT now(),
   CONSTRAINT simulation_score_runs_unique_version UNIQUE (
     simulation_id, market_id, formula_key, run_version
@@ -377,9 +343,9 @@ CREATE TABLE public.simulation_score_entries (
   points numeric NOT NULL,
   created_at timestamptz NOT NULL DEFAULT now(),
   CONSTRAINT simulation_score_entries_percentiles_check CHECK (
-    user_percentile BETWEEN 0 AND 100
-    AND crowd_without_user_percentile BETWEEN 0 AND 100
-    AND actual_percentile BETWEEN 0 AND 100
+    (user_percentile >= 0::numeric AND user_percentile <= 100::numeric)
+    AND (crowd_without_user_percentile >= 0::numeric AND crowd_without_user_percentile <= 100::numeric)
+    AND (actual_percentile >= 0::numeric AND actual_percentile <= 100::numeric)
   ),
   CONSTRAINT simulation_score_entries_unique_score UNIQUE (score_run_id, snapshot_id, player_id)
 );
@@ -413,7 +379,7 @@ CREATE TABLE public.simulation_checkpoints (
   name text NOT NULL,
   simulation_time timestamptz NOT NULL,
   state jsonb NOT NULL,
-  created_by uuid NOT NULL REFERENCES auth.users(id) ON DELETE RESTRICT,
+  created_by uuid NOT NULL,
   created_at timestamptz NOT NULL DEFAULT now(),
   CONSTRAINT simulation_checkpoints_name_check CHECK (char_length(btrim(name)) BETWEEN 1 AND 100),
   CONSTRAINT simulation_checkpoints_state_check CHECK (jsonb_typeof(state) = 'object')
@@ -496,7 +462,6 @@ GRANT SELECT, INSERT ON TABLE public.simulation_events TO service_role;
 GRANT ALL ON TABLE public.simulation_checkpoints TO service_role;
 GRANT USAGE, SELECT ON ALL SEQUENCES IN SCHEMA public TO service_role;
 
-REVOKE ALL ON FUNCTION private.sync_staging_user_role() FROM PUBLIC, anon, authenticated, service_role;
 REVOKE ALL ON FUNCTION private.reject_staging_append_only_mutation() FROM PUBLIC, anon, authenticated, service_role;
 REVOKE ALL ON FUNCTION private.staging_canonical_points(numeric, numeric, numeric)
   FROM PUBLIC, anon, authenticated;

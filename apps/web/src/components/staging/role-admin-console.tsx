@@ -17,7 +17,7 @@ type AdminData = {
     lastSignInAt: string | null;
   }>;
   pending: Array<{ id: string; email: string; role: string; status: string; requested_at: string; claimed_at: string | null; revoked_at: string | null }>;
-  audit: Array<{ id: number; actor_email: string | null; action: string; target_email: string | null; previous_role: string | null; new_role: string | null; metadata: Record<string, unknown>; created_at: string }>;
+  audit: Array<{ id: number; actor_email: string | null; action: string; target_email: string | null; previous_role: string | null; new_role: string | null; metadata: unknown; created_at: string }>;
   query: string;
 };
 

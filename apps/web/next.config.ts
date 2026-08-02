@@ -30,17 +30,26 @@ if (isProductionBuild) {
 
   if (process.env.APP_ENV === 'staging') {
     const siteUrl = process.env.NEXT_PUBLIC_SITE_URL;
-    const secretKey = process.env.SUPABASE_SECRET_KEY ?? process.env.SUPABASE_SERVICE_ROLE_KEY;
+    const universalAuthSecret = process.env.SUPABASE_SECRET_KEY ?? process.env.SUPABASE_SERVICE_ROLE_KEY;
+    const stagingSupabaseUrl = process.env.STAGING_SUPABASE_URL;
+    const stagingSupabaseSecret = process.env.STAGING_SUPABASE_SECRET_KEY;
     const rootAdmins = process.env.ROOT_ADMIN_EMAILS;
-    if (!siteUrl || !secretKey || !rootAdmins) {
-      throw new Error('Staging builds require NEXT_PUBLIC_SITE_URL, SUPABASE_SECRET_KEY, and ROOT_ADMIN_EMAILS.');
+    if (!siteUrl || !universalAuthSecret || !stagingSupabaseUrl || !stagingSupabaseSecret || !rootAdmins) {
+      throw new Error('Staging builds require universal Auth and isolated staging database credentials.');
     }
     const siteHost = new URL(siteUrl).hostname;
+    const stagingSupabaseHost = new URL(stagingSupabaseUrl).hostname;
     if (['nexthitmarket.com', 'www.nexthitmarket.com'].includes(siteHost)) {
       throw new Error('Staging builds cannot use a production NextHit hostname.');
     }
-    if (supabaseHost === 'azysnjlxrrvnkzntslqz.supabase.co') {
-      throw new Error('Staging builds cannot connect to the production Supabase project.');
+    if (!allowLocalStagingBuild && supabaseHost !== 'azysnjlxrrvnkzntslqz.supabase.co') {
+      throw new Error('Staging builds must use the shared production Supabase Auth project.');
+    }
+    if (!allowLocalStagingBuild && stagingSupabaseHost === supabaseHost) {
+      throw new Error('Staging data must remain isolated from the universal Auth project.');
+    }
+    if (!allowLocalStagingBuild && ['127.0.0.1', 'localhost', '::1'].includes(stagingSupabaseHost)) {
+      throw new Error('Remote staging builds cannot use a local staging database.');
     }
     if (process.env.ENABLE_GAME_MASTER_CONSOLE !== 'true' || process.env.ENABLE_STAGING_ROLE_ADMIN !== 'true') {
       throw new Error('Both staging console feature flags must be enabled in the staging deployment.');

@@ -1,16 +1,18 @@
 import { match } from "path-to-regexp";
 
-export const PROTECTED_ROUTE_PATTERNS = [
-  "/dashboard{/*path}",
-  "/settings{/*path}",
-  "/admin{/*path}",
-  "/private-item{/*path}",
-  "/private-items{/*path}",
-  "/items{/*path}",
-  "/item{/*path}",
-  "/internal{/*path}",
+export const PUBLIC_ROUTE_PATTERNS = [
+  "/login",
+  "/sign-up",
+  "/forgot-password",
+  "/update-password",
+  "/auth/callback",
+  "/auth/confirm",
+  "/auth/auth-code-error",
+  "/robots.txt",
+  "/sitemap.xml",
+  "/sitemap-0.xml",
 ] as const;
 
 export function isProtectedRoute(pathname: string): boolean {
-  return PROTECTED_ROUTE_PATTERNS.some((pattern) => match(pattern)(pathname));
+  return !PUBLIC_ROUTE_PATTERNS.some((pattern) => match(pattern)(pathname));
 }
