@@ -12,6 +12,7 @@ const metricLabels: Record<SteamLeaderboardMetric, string> = {
   first_weekend_ccu: 'CCU',
   first_month_reviews: 'Reviews',
   full_price_us: 'Price',
+  launch_discount: 'Discount',
 };
 const points = new Intl.NumberFormat('en-US', { maximumFractionDigits: 2 });
 

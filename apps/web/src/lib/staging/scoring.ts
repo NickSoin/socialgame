@@ -16,6 +16,10 @@ const REFERENCE_VALUES: Record<StagingMetric, readonly number[]> = {
     14.99, 17.99, 19.99, 24.99, 29.99, 34.99, 39.99, 44.99, 49.99,
     59.99, 69.99, 79.99, 89.99, 99.99,
   ],
+  launch_discount: [
+    0, 0, 0, 0, 5, 10, 10, 10, 15, 15, 20, 20, 20, 25, 25, 30, 33,
+    35, 40, 50, 60, 70, 80, 90, 100,
+  ],
 };
 
 export function percentileValue(metric: StagingMetric, rawValue: number) {

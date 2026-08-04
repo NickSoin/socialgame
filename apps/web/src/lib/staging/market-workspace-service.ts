@@ -41,12 +41,14 @@ const METRICS: readonly StagingMetric[] = [
   'first_weekend_ccu',
   'first_month_reviews',
   'full_price_us',
+  'launch_discount',
 ];
 
 const DEFAULT_SCENARIO_VALUES: Record<StagingMetric, number> = {
   first_weekend_ccu: 2_000,
   first_month_reviews: 1_200,
   full_price_us: 12,
+  launch_discount: 10,
 };
 
 function assertNoError(error: { message: string } | null, context: string) {

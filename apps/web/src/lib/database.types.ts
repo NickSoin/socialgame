@@ -1565,6 +1565,7 @@ export type Database = {
       }
       steam_games: {
         Row: {
+          average_forecast_history: Json
           classification_updated_at: string | null
           first_seen_at: string
           follower_count: number | null
@@ -1599,6 +1600,7 @@ export type Database = {
           wishlist_rank: number | null
         }
         Insert: {
+          average_forecast_history?: Json
           classification_updated_at?: string | null
           first_seen_at?: string
           follower_count?: number | null
@@ -1633,6 +1635,7 @@ export type Database = {
           wishlist_rank?: number | null
         }
         Update: {
+          average_forecast_history?: Json
           classification_updated_at?: string | null
           first_seen_at?: string
           follower_count?: number | null

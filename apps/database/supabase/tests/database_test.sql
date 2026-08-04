@@ -1207,6 +1207,15 @@ SELECT lives_ok(
   $$SELECT public.submit_steam_prediction(4739040, 'first_weekend_ccu', 100)$$,
   'a user can create a percentile forecast through the RPC'
 );
+SELECT lives_ok(
+  $$SELECT public.submit_steam_prediction(4739040, 'launch_discount', 20)$$,
+  'a user can forecast the launch discount'
+);
+SELECT throws_ok(
+  $$SELECT public.submit_steam_prediction(4739040, 'launch_discount', 101)$$,
+  '22003', NULL,
+  'launch discount forecasts are capped at one hundred percent'
+);
 SELECT is(
   (
     SELECT value

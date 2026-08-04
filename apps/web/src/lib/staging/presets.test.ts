@@ -23,6 +23,7 @@ describe('simulation presets', () => {
         expect(game.values.first_weekend_ccu).toBeGreaterThanOrEqual(0);
         expect(game.values.first_month_reviews).toBeGreaterThanOrEqual(0);
         expect(game.values.full_price_us).toBeGreaterThanOrEqual(0);
+        expect(game.values.launch_discount).toBeGreaterThanOrEqual(0);
       }
     }
   });

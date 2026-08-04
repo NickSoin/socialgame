@@ -1,4 +1,9 @@
-import { STEAM_BET_TARGETS, type SteamUpcomingGame } from "./steam-bets";
+import {
+  STEAM_BET_TARGETS,
+  type SteamBetAveragePoint,
+  type SteamBetTargetKey,
+  type SteamUpcomingGame,
+} from "./steam-bets";
 import { getSteamHoverPreviews, type SteamHoverPreviewRecord } from "./steam-hover-previews";
 
 export type SteamGameCatalogRecord = {
@@ -14,8 +19,25 @@ export type SteamGameCatalogRecord = {
   source_updated_at?: string | null;
   follower_count?: number | null;
   followers_updated_at?: string | null;
+  average_forecast_history?: unknown;
   steam_game_media?: SteamHoverPreviewRecord[] | null;
 };
+
+function getAverageHistory(
+  value: unknown,
+  targetKey: SteamBetTargetKey,
+): SteamBetAveragePoint[] {
+  if (!value || typeof value !== "object" || Array.isArray(value)) return [];
+  const rawPoints = (value as Record<string, unknown>)[targetKey];
+  if (!Array.isArray(rawPoints)) return [];
+
+  return rawPoints.slice(-30).flatMap((point) => {
+    if (!point || typeof point !== "object" || Array.isArray(point)) return [];
+    const at = "at" in point && typeof point.at === "string" ? point.at : null;
+    const averageValue = "average_value" in point ? Number(point.average_value) : Number.NaN;
+    return at && Number.isFinite(averageValue) ? [{ at, averageValue }] : [];
+  });
+}
 
 export function toSteamUpcomingGame(row: SteamGameCatalogRecord): SteamUpcomingGame {
   return {
@@ -34,6 +56,7 @@ export function toSteamUpcomingGame(row: SteamGameCatalogRecord): SteamUpcomingG
     targets: STEAM_BET_TARGETS.map((target) => ({
       ...target,
       averageValue: null,
+      averageHistory: getAverageHistory(row.average_forecast_history, target.key),
       predictionCount: 0,
       userValue: null,
       userPercentile: null,

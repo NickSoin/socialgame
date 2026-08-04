@@ -14,6 +14,7 @@ const game = (appId: number, name: string): SteamUpcomingGame => ({
   targets: STEAM_BET_TARGETS.map((target) => ({
     ...target,
     averageValue: null,
+    averageHistory: [],
     predictionCount: 0,
     userValue: null,
     userPercentile: null,
@@ -103,14 +104,14 @@ describe("buildSteamFeed", () => {
       liveGames: [upcoming, released],
       bets: [],
       trends: [],
-      states: marketStates(2, ["resolved", "locked", "locked"]),
+      states: marketStates(2, ["resolved", "locked", "locked", "locked"]),
     });
     const completedGames = buildSteamFeed({
       mode: "completed",
       liveGames: [upcoming, released],
       bets: [],
       trends: [],
-      states: marketStates(2, ["resolved", "resolved", "void"]),
+      states: marketStates(2, ["resolved", "resolved", "void", "resolved"]),
     });
 
     expect(lockedGames.map(({ appId }) => appId)).toEqual([released.appId]);
@@ -209,6 +210,7 @@ describe("buildSteamFeed", () => {
 
     expect(games[0]?.targets[0]).toMatchObject({
       averageValue: 200,
+      averageHistory: [],
       predictionCount: 7_000_000,
     });
   });
