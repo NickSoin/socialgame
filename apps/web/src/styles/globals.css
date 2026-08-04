@@ -479,6 +479,10 @@ button:disabled {
   .sb-feed-loader__spinner { animation-duration: 1.5s; }
 }
 .sb-game-card {
+  --sb-card-media-column: 34%;
+  --sb-card-content-start: 24px;
+  --sb-card-content-end: 22px;
+  --sb-card-column-gap: 12px;
   position: relative;
   display: block;
   container-name: forecast-card;
@@ -500,7 +504,7 @@ button:disabled {
 .sb-game-card__top {
   position: relative;
   display: grid;
-  grid-template-columns: 34% minmax(0, 66%);
+  grid-template-columns: var(--sb-card-media-column) minmax(0, 1fr);
   min-width: 0;
 }
 .sb-game-card__steam-link {
@@ -638,9 +642,10 @@ button:disabled {
 }
 .sb-game-card__content {
   display: grid;
-  grid-template-rows: 94px minmax(0, 1fr);
+  grid-template-rows: auto minmax(0, 1fr);
+  gap: 8px;
   min-width: 0;
-  padding: 0 22px 20px 24px;
+  padding: 0 var(--sb-card-content-end) 20px var(--sb-card-content-start);
 }
 .sb-game-card__header {
   display: flex;
@@ -698,7 +703,7 @@ button:disabled {
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));
   align-items: start;
-  gap: 12px;
+  gap: var(--sb-card-column-gap);
   min-width: 0;
 }
 .sb-forecast-field {
@@ -869,6 +874,8 @@ button:disabled {
   color: #166534;
 }
 .sb-forecast-tile {
+  --sb-forecast-main-size: clamp(16px, 1.65vw, 28px);
+  --sb-forecast-meta-size: clamp(10px, 1.05vw, 18px);
   position: relative;
   z-index: 2;
   display: grid;
@@ -894,7 +901,7 @@ button:disabled {
   margin: 0;
   overflow: hidden;
   color: #0e0f11;
-  font-size: clamp(17px, 1.35vw, 24px);
+  font-size: var(--sb-forecast-main-size);
   font-weight: 750;
   letter-spacing: -0.025em;
   line-height: 1.15;
@@ -904,7 +911,7 @@ button:disabled {
 .sb-forecast-tile__header time {
   flex: 0 0 auto;
   color: #b9b9bb;
-  font-size: clamp(15px, 1.25vw, 22px);
+  font-size: var(--sb-forecast-main-size);
   font-variant-numeric: tabular-nums;
   font-weight: 400;
   letter-spacing: -0.015em;
@@ -914,7 +921,7 @@ button:disabled {
 .sb-forecast-tile__body {
   display: grid;
   grid-template-columns: minmax(110px, 1.15fr) minmax(82px, auto) minmax(128px, 0.9fr);
-  align-items: end;
+  align-items: center;
   gap: 14px;
   min-width: 0;
 }
@@ -924,29 +931,27 @@ button:disabled {
   height: 65px;
   overflow: hidden;
   color: #9aa0a6;
-  font-size: 11px;
+  font-size: var(--sb-forecast-meta-size);
 }
 .sb-average-sparkline > span {
   display: flex;
-  align-items: flex-end;
+  align-items: center;
   height: 100%;
-  padding-bottom: 7px;
 }
 .sb-average-sparkline__placeholder {
   visibility: hidden;
 }
 .sb-forecast-tile__stats {
   display: grid;
-  align-content: end;
+  align-content: center;
   gap: 1px;
   min-width: 0;
-  padding-bottom: 5px;
   font-variant-numeric: tabular-nums;
 }
 .sb-forecast-tile__stats strong {
   overflow: hidden;
   color: #0e0f11;
-  font-size: clamp(24px, 1.8vw, 32px);
+  font-size: var(--sb-forecast-main-size);
   font-weight: 450;
   letter-spacing: -0.035em;
   line-height: 1;
@@ -956,14 +961,14 @@ button:disabled {
 .sb-forecast-tile__stats span {
   overflow: hidden;
   color: #9c9da1;
-  font-size: clamp(13px, 1.05vw, 18px);
+  font-size: var(--sb-forecast-meta-size);
   line-height: 1.15;
   text-overflow: ellipsis;
   white-space: nowrap;
 }
 .sb-forecast-tile__action {
   display: flex;
-  align-items: end;
+  align-items: center;
   width: 100%;
   min-width: 0;
   height: 65px;
@@ -978,7 +983,7 @@ button:disabled {
   border: 0;
   border-radius: 14px;
   color: #0e0f11;
-  font-size: clamp(19px, 1.65vw, 28px);
+  font-size: var(--sb-forecast-main-size);
   font-variant-numeric: tabular-nums;
   font-weight: 430;
   line-height: 1;
@@ -1034,7 +1039,7 @@ button.sb-forecast-control:disabled {
   border-radius: 9px;
   background: #fff;
   color: #0e0f11;
-  font-size: clamp(17px, 1.25vw, 22px);
+  font-size: var(--sb-forecast-main-size);
   font-variant-numeric: tabular-nums;
   text-align: center;
 }
@@ -1073,7 +1078,7 @@ button.sb-forecast-control:disabled {
 }
 .sb-game-card__expand {
   position: absolute;
-  right: 33%;
+  left: calc((100% + var(--sb-card-media-column) + var(--sb-card-content-start) - var(--sb-card-content-end)) / 2);
   bottom: 0;
   z-index: 4;
   display: inline-flex;
@@ -1086,7 +1091,7 @@ button.sb-forecast-control:disabled {
   background: rgb(255 255 255 / 1%);
   color: #858689;
   cursor: pointer;
-  transform: translate(50%, 42%);
+  transform: translate(-50%, 42%);
 }
 .sb-game-card__expand svg {
   width: 54px;
@@ -1102,14 +1107,30 @@ button.sb-forecast-control:disabled {
   z-index: 2;
   display: grid;
   grid-template-columns: repeat(3, minmax(0, 1fr));
-  gap: 12px;
+  gap: var(--sb-card-column-gap);
   min-width: 0;
-  padding: 27px 22px 18px 3.5%;
+  padding:
+    27px
+    var(--sb-card-content-end)
+    18px
+    calc(
+      var(--sb-card-media-column) + var(--sb-card-content-start) - var(--sb-card-column-gap) -
+      (100% - var(--sb-card-media-column) - var(--sb-card-content-start) - var(--sb-card-content-end) - var(--sb-card-column-gap)) / 2
+    );
+}
+.sb-forecast-tile-placeholder {
+  display: block;
+  min-width: 0;
+  min-height: 134px;
+  border: 2px solid #e1e3e6;
+  border-radius: 18px;
+  background: #fff;
 }
 @container forecast-card (max-width: 1100px) {
   .sb-game-card__content {
-    grid-template-rows: 40px minmax(0, 1fr);
-    padding: 0 14px 4px 18px;
+    grid-template-rows: auto minmax(0, 1fr);
+    gap: 6px;
+    padding-bottom: 4px;
   }
   .sb-game-card__header {
     padding-top: 8px;
@@ -1125,47 +1146,43 @@ button.sb-forecast-control:disabled {
     font-size: 10px;
   }
   .sb-forecast-tile {
-    grid-template-rows: 26px minmax(0, 1fr);
-    gap: 5px;
-    min-height: 120px;
-    padding: 8px 9px 9px;
+    --sb-forecast-main-size: 14px;
+    --sb-forecast-meta-size: 10px;
+    grid-template-rows: 18px minmax(0, 1fr);
+    gap: 4px;
+    min-height: 86px;
+    padding: 7px 9px 8px;
+    border-radius: 13px;
+  }
+  .sb-forecast-tile-placeholder {
+    min-height: 86px;
     border-radius: 13px;
   }
   .sb-forecast-tile__header {
     gap: 8px;
   }
-  .sb-forecast-tile__header h3 {
-    font-size: 14px;
-  }
-  .sb-forecast-tile__header time {
-    font-size: 12px;
-  }
   .sb-forecast-tile__body {
     grid-template-columns: minmax(60px, 1fr) minmax(52px, auto) minmax(82px, 0.8fr);
     gap: 6px;
   }
-  .sb-forecast-tile__stats strong {
-    font-size: 19px;
-  }
-  .sb-forecast-tile__stats span {
-    font-size: 10px;
+  .sb-forecast-tile__action,
+  .sb-average-sparkline {
+    height: 44px;
   }
   .sb-forecast-control {
-    height: 48px;
+    height: 38px;
     padding-inline: 7px;
     border-radius: 11px;
-    font-size: 16px;
   }
   .sb-forecast-editor {
     grid-template-columns: minmax(48px, 1fr) 28px 28px;
     gap: 3px;
-    height: 48px;
+    height: 38px;
     padding: 4px;
     border-radius: 11px;
   }
   .sb-forecast-editor input {
-    height: 40px;
-    font-size: 15px;
+    height: 30px;
   }
   .sb-forecast-editor button {
     width: 28px;
@@ -1680,6 +1697,11 @@ button.sb-forecast-control:disabled {
 }
 
 @media (max-width: 1360px) {
+  .sb-game-card {
+    --sb-card-content-start: 18px;
+    --sb-card-content-end: 14px;
+    --sb-card-column-gap: 10px;
+  }
   .sb-header__inner {
     grid-template-columns: 176px minmax(360px, 1fr) auto 44px;
     gap: 16px;
@@ -1687,12 +1709,9 @@ button.sb-forecast-control:disabled {
   .sb-header__inner.is-guest {
     grid-template-columns: 176px minmax(360px, 1fr) auto;
   }
-  .sb-game-card__targets {
-    gap: 10px;
-  }
   .sb-game-card__content {
-    grid-template-rows: 82px minmax(0, 1fr);
-    padding: 0 14px 16px 18px;
+    grid-template-rows: auto minmax(0, 1fr);
+    padding: 0 var(--sb-card-content-end) 16px var(--sb-card-content-start);
   }
   .sb-forecast-field {
     padding-inline: 7px;
@@ -1705,30 +1724,25 @@ button.sb-forecast-control:disabled {
     font-size: 10px;
   }
   .sb-forecast-tile {
-    min-height: 118px;
     padding: 10px 11px 11px;
   }
   .sb-forecast-tile__body {
     grid-template-columns: minmax(92px, 1fr) minmax(68px, auto) minmax(108px, 0.8fr);
     gap: 9px;
   }
-  .sb-forecast-tile__action,
-  .sb-average-sparkline {
-    height: 56px;
-  }
-  .sb-forecast-control,
-  .sb-forecast-editor {
-    height: 50px;
-  }
 }
 
 @media (max-width: 1080px) {
+  .sb-game-card {
+    --sb-card-media-column: 38%;
+    --sb-card-content-start: 12px;
+  }
   .sb-game-card__top {
-    grid-template-columns: 38% minmax(0, 62%);
+    grid-template-columns: var(--sb-card-media-column) minmax(0, 1fr);
   }
   .sb-game-card__content {
-    grid-template-rows: 68px minmax(0, 1fr);
-    padding-left: 12px;
+    grid-template-rows: auto minmax(0, 1fr);
+    padding-left: var(--sb-card-content-start);
   }
   .sb-game-card__header {
     padding-top: 10px;
@@ -1743,48 +1757,32 @@ button.sb-forecast-control:disabled {
     font-size: 11px;
   }
   .sb-forecast-tile {
-    grid-template-rows: 29px minmax(0, 1fr);
-    min-height: 105px;
+    --sb-forecast-main-size: 14px;
+    --sb-forecast-meta-size: 10px;
     border-radius: 13px;
-  }
-  .sb-forecast-tile__header h3 {
-    font-size: 14px;
-  }
-  .sb-forecast-tile__header time {
-    font-size: 12px;
   }
   .sb-forecast-tile__body {
     grid-template-columns: minmax(60px, 1fr) minmax(50px, auto) minmax(82px, 0.8fr);
     gap: 6px;
   }
-  .sb-forecast-tile__stats strong {
-    font-size: 19px;
-  }
-  .sb-forecast-tile__stats span {
-    font-size: 10px;
-  }
   .sb-forecast-control {
-    height: 44px;
     border-radius: 10px;
-    font-size: 16px;
   }
   .sb-forecast-editor {
     grid-template-columns: minmax(44px, 1fr) 26px 26px;
-    height: 44px;
     gap: 3px;
     padding: 3px;
     border-radius: 10px;
   }
   .sb-forecast-editor input {
-    height: 38px;
-    font-size: 14px;
+    height: 30px;
   }
   .sb-forecast-editor button {
     width: 26px;
     height: 26px;
   }
-  .sb-game-card__expand {
-    right: 27%;
+  .sb-forecast-tile-placeholder {
+    min-height: 86px;
   }
 }
 
@@ -1820,29 +1818,34 @@ button.sb-forecast-control:disabled {
     grid-template-columns: 1fr;
   }
   .sb-forecast-tile {
+    --sb-forecast-main-size: 17px;
+    --sb-forecast-meta-size: 11px;
+    grid-template-rows: 24px minmax(0, 1fr);
     min-height: 118px;
   }
-  .sb-forecast-tile__header h3 {
-    font-size: 17px;
+  .sb-forecast-tile__action,
+  .sb-average-sparkline {
+    height: 56px;
   }
-  .sb-forecast-tile__header time {
-    font-size: 15px;
+  .sb-forecast-control,
+  .sb-forecast-editor {
+    height: 50px;
+  }
+  .sb-forecast-editor input {
+    height: 42px;
   }
   .sb-forecast-tile__body {
     grid-template-columns: minmax(86px, 1fr) minmax(64px, auto) minmax(100px, 0.75fr);
     gap: 9px;
   }
-  .sb-forecast-tile__stats strong {
-    font-size: 23px;
-  }
-  .sb-forecast-tile__stats span {
-    font-size: 12px;
-  }
   .sb-game-card__expand {
-    right: 50%;
+    left: 50%;
   }
   .sb-game-card__expanded-panel {
     padding: 27px 14px 16px 5%;
+  }
+  .sb-forecast-tile-placeholder {
+    display: none;
   }
 }
 
@@ -1855,6 +1858,9 @@ button.sb-forecast-control:disabled {
   }
   .sb-game-card__header time {
     font-size: 19px;
+  }
+  .sb-forecast-tile {
+    --sb-forecast-main-size: 16px;
   }
   .sb-forecast-tile__body {
     grid-template-columns: minmax(70px, 1fr) minmax(56px, auto) minmax(92px, 0.75fr);

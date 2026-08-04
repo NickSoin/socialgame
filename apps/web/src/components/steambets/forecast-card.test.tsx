@@ -52,7 +52,7 @@ afterEach(() => {
 
 describe("ForecastCard", () => {
   it("shows two primary forecasts and expands the remaining three-column panel", () => {
-    render(<ForecastCard game={game} isAuthenticated />);
+    const { container } = render(<ForecastCard game={game} isAuthenticated />);
 
     expect(screen.getAllByText("200")).toHaveLength(2);
     expect(screen.getAllByText("7M forecasts")).toHaveLength(2);
@@ -65,14 +65,20 @@ describe("ForecastCard", () => {
     ).toBe("https://store.steampowered.com/app/42/");
     expect(document.querySelector('img[src*="favicon"]')).toBeNull();
 
-    const expand = screen.getByRole("button", { name: "Expand all forecasts for Input Limit Test" });
+    const expand = screen.getByRole("button", {
+      name: "Expand all forecasts for Input Limit Test",
+    });
     expect(expand.getAttribute("aria-expanded")).toBe("false");
     fireEvent.click(expand);
 
     expect(screen.getByText("Launch price in US, $")).toBeTruthy();
     expect(screen.getByText("Launch discount")).toBeTruthy();
     expect(screen.getAllByText("7M forecasts")).toHaveLength(4);
-    expect(screen.getByRole("button", { name: "Collapse all forecasts for Input Limit Test" })).toBeTruthy();
+    expect(container.querySelectorAll(".sb-game-card__expanded-panel > *")).toHaveLength(3);
+    expect(container.querySelectorAll(".sb-forecast-tile-placeholder")).toHaveLength(1);
+    expect(
+      screen.getByRole("button", { name: "Collapse all forecasts for Input Limit Test" }),
+    ).toBeTruthy();
   });
 
   it("cycles hero and two screenshots on every clickable-card hover", () => {
@@ -136,9 +142,11 @@ describe("ForecastCard", () => {
   it("enforces all four target-specific character limits while typing", () => {
     render(<ForecastCard game={game} isAuthenticated />);
 
-    fireEvent.click(screen.getByRole("button", {
-      name: "Forecast First weekend peak CCU for Input Limit Test",
-    }));
+    fireEvent.click(
+      screen.getByRole("button", {
+        name: "Forecast First weekend peak CCU for Input Limit Test",
+      }),
+    );
     let input = screen.getByRole("textbox", {
       name: "First weekend peak CCU for Input Limit Test",
     }) as HTMLInputElement;
@@ -147,21 +155,29 @@ describe("ForecastCard", () => {
     expect(input.value).toBe("1234567");
     fireEvent.click(screen.getByRole("button", { name: "Cancel First weekend peak CCU forecast" }));
 
-    fireEvent.click(screen.getByRole("button", {
-      name: "Forecast First month total reviews for Input Limit Test",
-    }));
+    fireEvent.click(
+      screen.getByRole("button", {
+        name: "Forecast First month total reviews for Input Limit Test",
+      }),
+    );
     input = screen.getByRole("textbox", {
       name: "First month total reviews for Input Limit Test",
     }) as HTMLInputElement;
     expect(input.maxLength).toBe(6);
     fireEvent.change(input, { target: { value: "987654321" } });
     expect(input.value).toBe("987654");
-    fireEvent.click(screen.getByRole("button", { name: "Cancel First month total reviews forecast" }));
+    fireEvent.click(
+      screen.getByRole("button", { name: "Cancel First month total reviews forecast" }),
+    );
 
-    fireEvent.click(screen.getByRole("button", { name: "Expand all forecasts for Input Limit Test" }));
-    fireEvent.click(screen.getByRole("button", {
-      name: "Forecast Launch price in US, $ for Input Limit Test",
-    }));
+    fireEvent.click(
+      screen.getByRole("button", { name: "Expand all forecasts for Input Limit Test" }),
+    );
+    fireEvent.click(
+      screen.getByRole("button", {
+        name: "Forecast Launch price in US, $ for Input Limit Test",
+      }),
+    );
     input = screen.getByRole("textbox", {
       name: "Launch price in US, $ for Input Limit Test",
     }) as HTMLInputElement;
@@ -170,9 +186,11 @@ describe("ForecastCard", () => {
     expect(input.value).toBe("123.456");
     fireEvent.click(screen.getByRole("button", { name: "Cancel Launch price in US, $ forecast" }));
 
-    fireEvent.click(screen.getByRole("button", {
-      name: "Forecast Launch discount for Input Limit Test",
-    }));
+    fireEvent.click(
+      screen.getByRole("button", {
+        name: "Forecast Launch discount for Input Limit Test",
+      }),
+    );
     input = screen.getByRole("textbox", {
       name: "Launch discount for Input Limit Test",
     }) as HTMLInputElement;
@@ -183,14 +201,18 @@ describe("ForecastCard", () => {
 
   it("submits the bounded draft instead of a lossy number-input value", () => {
     render(<ForecastCard game={game} isAuthenticated />);
-    fireEvent.click(screen.getByRole("button", {
-      name: "Forecast First weekend peak CCU for Input Limit Test",
-    }));
+    fireEvent.click(
+      screen.getByRole("button", {
+        name: "Forecast First weekend peak CCU for Input Limit Test",
+      }),
+    );
     const ccu = screen.getByRole("textbox", {
       name: "First weekend peak CCU for Input Limit Test",
     });
     fireEvent.change(ccu, { target: { value: "12345678" } });
-    fireEvent.click(screen.getByRole("button", { name: "Confirm First weekend peak CCU forecast" }));
+    fireEvent.click(
+      screen.getByRole("button", { name: "Confirm First weekend peak CCU forecast" }),
+    );
 
     expect(mocks.execute).toHaveBeenCalledWith({
       steamAppId: 42,
@@ -201,27 +223,36 @@ describe("ForecastCard", () => {
 
   it("cancels a draft without submitting it", () => {
     render(<ForecastCard game={game} isAuthenticated />);
-    fireEvent.click(screen.getByRole("button", {
-      name: "Forecast First weekend peak CCU for Input Limit Test",
-    }));
-    fireEvent.change(screen.getByRole("textbox", {
-      name: "First weekend peak CCU for Input Limit Test",
-    }), { target: { value: "9000" } });
+    fireEvent.click(
+      screen.getByRole("button", {
+        name: "Forecast First weekend peak CCU for Input Limit Test",
+      }),
+    );
+    fireEvent.change(
+      screen.getByRole("textbox", {
+        name: "First weekend peak CCU for Input Limit Test",
+      }),
+      { target: { value: "9000" } },
+    );
     fireEvent.click(screen.getByRole("button", { name: "Cancel First weekend peak CCU forecast" }));
 
     expect(mocks.execute).not.toHaveBeenCalled();
-    expect(screen.queryByRole("button", { name: "Confirm First weekend peak CCU forecast" })).toBeNull();
-    expect(screen.getByRole("button", {
-      name: "Forecast First weekend peak CCU for Input Limit Test",
-    })).toBeTruthy();
+    expect(
+      screen.queryByRole("button", { name: "Confirm First weekend peak CCU forecast" }),
+    ).toBeNull();
+    expect(
+      screen.getByRole("button", {
+        name: "Forecast First weekend peak CCU for Input Limit Test",
+      }),
+    ).toBeTruthy();
   });
 
   it("shows a saved forecast in place of the button and lets it be edited", () => {
     const predicted = {
       ...game,
-      targets: game.targets.map((target, index) => index === 0
-        ? { ...target, userValue: 1000, userPercentile: 34 }
-        : target),
+      targets: game.targets.map((target, index) =>
+        index === 0 ? { ...target, userValue: 1000, userPercentile: 34 } : target,
+      ),
     };
     render(<ForecastCard game={predicted} isAuthenticated />);
 
@@ -234,17 +265,27 @@ describe("ForecastCard", () => {
       name: "First weekend peak CCU for Input Limit Test",
     }) as HTMLInputElement;
     expect(input.value).toBe("1000");
-    expect(screen.getByRole("button", { name: "Confirm First weekend peak CCU forecast" })).toBeTruthy();
+    expect(
+      screen.getByRole("button", { name: "Confirm First weekend peak CCU forecast" }),
+    ).toBeTruthy();
   });
 
   it("shows Locked for both locked and resolved markets", () => {
     const closed = {
       ...game,
-      targets: game.targets.map((target, index) => index === 0
-        ? { ...target, userValue: 500, userPercentile: 26, marketStatus: "locked" as const }
-        : index === 1
-          ? { ...target, userValue: 400, marketStatus: "resolved" as const, actualValue: 650, points: 7.25 }
-          : target),
+      targets: game.targets.map((target, index) =>
+        index === 0
+          ? { ...target, userValue: 500, userPercentile: 26, marketStatus: "locked" as const }
+          : index === 1
+            ? {
+                ...target,
+                userValue: 400,
+                marketStatus: "resolved" as const,
+                actualValue: 650,
+                points: 7.25,
+              }
+            : target,
+      ),
     };
     render(<ForecastCard game={closed} isAuthenticated />);
 
@@ -256,7 +297,9 @@ describe("ForecastCard", () => {
     render(<ForecastCard game={{ ...game, lifecycleStatus: "released" }} isAuthenticated />);
 
     expect(screen.getAllByText("Locked")).toHaveLength(2);
-    fireEvent.click(screen.getByRole("button", { name: "Expand all forecasts for Input Limit Test" }));
+    fireEvent.click(
+      screen.getByRole("button", { name: "Expand all forecasts for Input Limit Test" }),
+    );
     expect(screen.getAllByText("Locked")).toHaveLength(4);
     expect(screen.queryByRole("textbox")).toBeNull();
     expect(mocks.execute).not.toHaveBeenCalled();

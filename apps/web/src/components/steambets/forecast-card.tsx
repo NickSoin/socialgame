@@ -3,7 +3,7 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { CheckIcon, ChevronDownIcon, XMarkIcon } from "@heroicons/react/24/outline";
 import { useAction } from "next-safe-action/hooks";
-import { Line, LineChart } from "recharts";
+import { Line, LineChart, YAxis } from "recharts";
 import { placeSteamBetAction } from "@/data/actions/gamecast-actions";
 import type { SteamBetTarget, SteamUpcomingGame } from "@/lib/steam-bets";
 import { parseSteamBetDraft, sanitizeSteamBetDraft } from "@/lib/steam-bets";
@@ -33,15 +33,9 @@ function formatExecutionTime(value: string | null, fallback: string) {
   return `${pair(date.getUTCHours())}:${pair(date.getUTCMinutes())} ${pair(date.getUTCDate())}/${pair(date.getUTCMonth() + 1)}/${String(date.getUTCFullYear()).slice(-2)}`;
 }
 
-function AverageSparkline({
-  chartId,
-  target,
-}: {
-  chartId: string;
-  target: SteamBetTarget;
-}) {
+function AverageSparkline({ chartId, target }: { chartId: string; target: SteamBetTarget }) {
   const containerRef = useRef<HTMLDivElement>(null);
-  const [chartWidth, setChartWidth] = useState(180);
+  const [chartSize, setChartSize] = useState({ height: 65, width: 180 });
   const [mounted, setMounted] = useState(false);
   const data = useMemo(() => {
     const values = target.averageHistory
@@ -54,6 +48,10 @@ function AverageSparkline({
     if (values.length === 1) values.unshift(values[0]!);
     return values.map((average, index) => ({ index, average }));
   }, [target.averageHistory, target.averageValue]);
+  const domain = useMemo<[number, number]>(() => {
+    const maximum = data.reduce((current, point) => Math.max(current, point.average), 0);
+    return [0, maximum > 0 ? maximum * 1.15 : 1];
+  }, [data]);
 
   useEffect(() => {
     setMounted(true);
@@ -62,7 +60,16 @@ function AverageSparkline({
   useEffect(() => {
     const element = containerRef.current;
     if (!element) return;
-    const sync = () => setChartWidth(Math.max(80, Math.floor(element.getBoundingClientRect().width)));
+    const sync = () => {
+      const bounds = element.getBoundingClientRect();
+      const nextSize = {
+        height: Math.max(40, Math.floor(bounds.height)),
+        width: Math.max(80, Math.floor(bounds.width)),
+      };
+      setChartSize((current) =>
+        current.height === nextSize.height && current.width === nextSize.width ? current : nextSize,
+      );
+    };
     sync();
     if (typeof ResizeObserver === "undefined") return;
     const observer = new ResizeObserver(sync);
@@ -78,19 +85,25 @@ function AverageSparkline({
       role="img"
     >
       {data.length && mounted ? (
-          <LineChart data={data} height={65} margin={{ top: 4, right: 2, bottom: 4, left: 2 }} width={chartWidth}>
-            <Line
-              dataKey="average"
-              dot={false}
-              id={chartId}
-              isAnimationActive={false}
-              stroke="#73cf9a"
-              strokeLinecap="round"
-              strokeLinejoin="round"
-              strokeWidth={2.5}
-              type="linear"
-            />
-          </LineChart>
+        <LineChart
+          data={data}
+          height={chartSize.height}
+          margin={{ top: 4, right: 2, bottom: 4, left: 2 }}
+          width={chartSize.width}
+        >
+          <YAxis domain={domain} hide type="number" width={0} />
+          <Line
+            dataKey="average"
+            dot={false}
+            id={chartId}
+            isAnimationActive={false}
+            stroke="#73cf9a"
+            strokeLinecap="round"
+            strokeLinejoin="round"
+            strokeWidth={2.5}
+            type="linear"
+          />
+        </LineChart>
       ) : data.length ? (
         <span aria-hidden="true" className="sb-average-sparkline__placeholder" />
       ) : (
@@ -159,7 +172,14 @@ function ForecastTile({
       className={`sb-forecast-tile is-${isLocked ? "locked" : mode}`}
       onSubmit={(event) => {
         event.preventDefault();
-        if (!isAuthenticated || isLocked || !isEditing || parsedDraft === null || status === "executing") return;
+        if (
+          !isAuthenticated ||
+          isLocked ||
+          !isEditing ||
+          parsedDraft === null ||
+          status === "executing"
+        )
+          return;
         submittedValue.current = draft;
         execute({ steamAppId: appId, targetKey: target.key, value: draft });
       }}
@@ -197,7 +217,9 @@ function ForecastTile({
                 pattern={target.step === 1 ? "[0-9]*" : "[0-9]+([.][0-9]+)?"}
                 type="text"
                 value={draft}
-                onChange={(event) => setDraft(sanitizeSteamBetDraft(target.key, event.target.value))}
+                onChange={(event) =>
+                  setDraft(sanitizeSteamBetDraft(target.key, event.target.value))
+                }
                 onKeyDown={(event) => {
                   if (event.key === "Escape") cancelEditing();
                 }}
@@ -222,9 +244,11 @@ function ForecastTile({
             </div>
           ) : (
             <button
-              aria-label={savedValue === null
-                ? `Forecast ${target.label} for ${gameName}`
-                : `Edit ${target.label} forecast for ${gameName}`}
+              aria-label={
+                savedValue === null
+                  ? `Forecast ${target.label} for ${gameName}`
+                  : `Edit ${target.label} forecast for ${gameName}`
+              }
               className={`sb-forecast-control ${savedValue === null ? "is-empty" : "is-saved"}`}
               disabled={!isAuthenticated}
               type="button"
@@ -258,6 +282,7 @@ export function ForecastCard({
   const [expanded, setExpanded] = useState(false);
   const primaryTargets = game.targets.slice(0, 2);
   const additionalTargets = game.targets.slice(2);
+  const expandedPlaceholders = (3 - (additionalTargets.length % 3)) % 3;
   const panelId = `steam-forecast-panel-${game.appId}`;
   const tileProps = {
     appId: game.appId,
@@ -299,7 +324,9 @@ export function ForecastCard({
               <div className="sb-game-card__name">
                 <h2>{game.name}</h2>
               </div>
-              {game.tags.length > 0 && <p className="sb-game-card__tags">{game.tags.join(" · ")}</p>}
+              {game.tags.length > 0 && (
+                <p className="sb-game-card__tags">{game.tags.join(" · ")}</p>
+              )}
             </div>
             <time dateTime={game.releaseDate}>{game.releaseLabel}</time>
           </header>
@@ -327,6 +354,13 @@ export function ForecastCard({
         <div className="sb-game-card__expanded-panel" id={panelId}>
           {additionalTargets.map((target) => (
             <ForecastTile key={target.key} target={target} {...tileProps} />
+          ))}
+          {Array.from({ length: expandedPlaceholders }, (_, index) => (
+            <span
+              aria-hidden="true"
+              className="sb-forecast-tile-placeholder"
+              key={`placeholder-${index}`}
+            />
           ))}
         </div>
       )}
