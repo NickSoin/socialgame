@@ -171,7 +171,8 @@ function ForecastTile({
 
   const parsedDraft = parseSteamBetDraft(target.key, draft);
   const savedValue = parseSteamBetDraft(target.key, savedDraft);
-  const isLocked = !gameIsOpen || target.marketStatus !== "open";
+  const isLocked =
+    !gameIsOpen || target.marketStatus === "resolved" || target.marketStatus === "void";
   const isEditing = mode === "editing" && !isLocked;
   const executionDateTime = target.lockAt ?? (releaseDate === "TBA" ? null : releaseDate);
 
@@ -297,7 +298,7 @@ export function ForecastCard({
   const [expanded, setExpanded] = useState(false);
   const primaryTargets = game.targets.slice(0, 2);
   const additionalTargets = game.targets.slice(2);
-  const expandedPlaceholders = (3 - (additionalTargets.length % 3)) % 3;
+  const expandedPlaceholders = (2 - (additionalTargets.length % 2)) % 2;
   const panelId = `steam-forecast-panel-${game.appId}`;
   const tileProps = {
     appId: game.appId,

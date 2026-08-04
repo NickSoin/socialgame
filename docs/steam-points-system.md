@@ -15,7 +15,8 @@ Positive points mean the player improved on the rest of the crowd. Negative poin
 
 ## Lifecycle and jobs
 
-- `process_steam_market_cycle()` runs every five minutes. It creates markets for current TopWishlisted games, keeps release-derived dates current, migrates legacy `steam_bets` into version history, and locks due markets.
+- `process_steam_market_cycle()` runs every five minutes. It creates markets for current TopWishlisted games, keeps release-derived dates current, migrates legacy `steam_bets` into version history, and reconciles market locks with the confirmed Steam game lifecycle.
+- Forecast markets remain open while their game is `upcoming`, even when an estimated release timestamp has passed. The same lifecycle transition that moves a game into Locked atomically locks all of its forecast markets.
 - `create_steam_market_snapshots()` runs at 00:00 UTC and is idempotent per market/date.
 - `get_steam_resolution_queue()` exposes locked markets whose measurement window has ended to administrators/service jobs.
 - `resolve_steam_forecast_market()`, `recalculate_steam_forecast_market()`, and `void_steam_forecast_market()` require an administrator or service role. Results and score runs are versioned; corrections do not erase the previous calculation.

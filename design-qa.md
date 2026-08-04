@@ -117,6 +117,57 @@ final result: passed
 
 passed
 
+# Two-column expansion and release-lock synchronization — visual QA
+
+## Source visual truth
+
+- User-reported collapsed state: `C:\Users\soinn\AppData\Local\Temp\codex-clipboard-2b43b8ad-aa25-4c74-b70a-76c968745ea5.png` (978 × 173 px).
+- Requested corrections: keep the disclosure arrow fully inside the card; start the expanded surface exactly at the GameHero right edge; use two aligned forecast columns; never show Locked while the game lifecycle is upcoming.
+
+## Rendered implementation
+
+- URL: `http://localhost:3000/` in the Codex in-app browser.
+- Expanded screenshot: `C:\Users\soinn\AppData\Local\Temp\forecast-card-final-expanded-clean.png` (1265 × 712 px).
+- Source/implementation comparison: `C:\Users\soinn\AppData\Local\Temp\forecast-card-two-column-comparison.png` (1265 × 1025 px).
+- Viewport: 1280 × 720 CSS px with a 1265 px document client width after the scrollbar; screenshot density is 1 exported pixel per CSS pixel.
+- State: authenticated Popular upcoming feed, Akatori, all four markets forecastable, expanded panel visible.
+
+## Full-view and focused comparison evidence
+
+- The supplied screenshot and final implementation were placed together in the combined comparison image before the final judgment.
+- The expanded panel's measured left edge equals the GameHero's measured right edge exactly (`leftDelta = 0`).
+- The expanded surface contains exactly two forecast tiles and no placeholder column.
+- Expanded-column x positions differ from their corresponding primary-column positions by only 0 px and 1 px; widths differ by 1 px because the expanded surface owns its border.
+- The disclosure SVG is fully contained inside the top card surface, so the card edge no longer clips it.
+- The live upcoming card exposes zero Locked controls and four Forecast controls after expansion.
+- At the intermediate desktop viewport the leaderboard now moves below the feed, preserving full forecast controls instead of clipping the right column.
+
+## Release-lock lifecycle evidence
+
+- `steam_games.lifecycle_status` is the single release signal for feed placement and forecast locking.
+- A stale market-level `locked` value is ignored by the upcoming-card UI and reopened by the submission path.
+- The scheduled lock cycle no longer locks on an estimated timestamp while Steam still reports the game as upcoming.
+- The confirmed `upcoming → released` transition closes every market atomically; already resolved markets remain resolved, while open markets become locked.
+- Released games continue to be selected by the Locked feed and every rendered forecast control becomes Locked.
+
+## Comparison history
+
+1. P1: the disclosure icon crossed the lower card edge. Removed the vertical translation and reserved bottom space; measured SVG containment now passes.
+2. P1: the expanded surface used a third track beneath the image. Reduced it to two tracks and aligned its border to the GameHero edge.
+3. P1: estimated release time could lock a still-upcoming game. Replaced timestamp-only locking with confirmed lifecycle locking across trigger, cycle, snapshot, submission, and UI paths.
+4. P2: the leaderboard squeezed forecast controls at intermediate desktop widths. Moved it below the feed at widths up to 1360 px.
+5. Post-fix browser evidence confirms exact panel alignment, two columns, a visible arrow, four forecastable upcoming markets, and no console error overlay.
+
+## Automated verification
+
+- Database pgTap: 197 passed.
+- Vitest: 179 passed, 2 skipped.
+- TypeScript: passed.
+- oxlint: 0 warnings, 0 errors.
+- Declarative-schema diff: no changes found after applying the generated migration locally.
+
+final result: passed
+
 # Forecast tile composition polish — final visual QA
 
 ## Source visual truth

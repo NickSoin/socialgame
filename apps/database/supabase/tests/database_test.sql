@@ -1536,14 +1536,65 @@ UPDATE public.steam_forecast_markets SET status = 'locked'
 WHERE steam_app_id = 4739040 AND metric_type = 'first_month_reviews';
 SET LOCAL ROLE authenticated;
 SELECT tests.set_user_context('92222222-2222-4222-8222-222222222222');
-SELECT throws_ok(
+SELECT lives_ok(
   $$SELECT public.submit_steam_prediction(4739040, 'first_month_reviews', 12)$$,
-  '22023', NULL,
-  'submissions that race with market locking are rejected atomically'
+  'an upcoming game reopens a prematurely locked market when a forecast is submitted'
 );
 
 RESET ROLE;
 SELECT tests.clear_user_context();
+SELECT is(
+  (
+    SELECT status FROM public.steam_forecast_markets
+    WHERE steam_app_id = 4739040 AND metric_type = 'first_month_reviews'
+  ),
+  'open',
+  'an upcoming game cannot remain locked before its confirmed release'
+);
+
+UPDATE public.steam_forecast_markets
+SET lock_at = now() - interval '1 day', status = 'open'
+WHERE steam_app_id = 4739040 AND metric_type = 'first_month_reviews';
+SELECT lives_ok(
+  $$SELECT public.lock_due_steam_forecast_markets()$$,
+  'the scheduled market cycle tolerates an estimated release time that has already passed'
+);
+SELECT is(
+  (
+    SELECT status FROM public.steam_forecast_markets
+    WHERE steam_app_id = 4739040 AND metric_type = 'first_month_reviews'
+  ),
+  'open',
+  'the scheduled market cycle cannot lock a game before Steam confirms its release'
+);
+
+UPDATE public.steam_games
+SET lifecycle_status = 'released', released_at = now(), wishlist_rank = NULL, is_wishlisted = false
+WHERE steam_app_id = 4739040;
+SELECT is(
+  (
+    SELECT count(*)::integer FROM public.steam_forecast_markets
+    WHERE steam_app_id = 4739040 AND status IN ('locked', 'resolved')
+  ),
+  4,
+  'the confirmed release transition atomically closes every game market'
+);
+
+SET LOCAL ROLE authenticated;
+SELECT tests.set_user_context('92222222-2222-4222-8222-222222222222');
+SELECT throws_ok(
+  $$SELECT public.submit_steam_prediction(4739040, 'first_month_reviews', 13)$$,
+  'P0002', NULL,
+  'the confirmed release transition closes forecasts at the same time'
+);
+
+RESET ROLE;
+SELECT tests.clear_user_context();
+UPDATE public.steam_games
+SET lifecycle_status = 'upcoming', released_at = NULL, wishlist_rank = 7, is_wishlisted = true
+WHERE steam_app_id = 4739040;
+SELECT public.ensure_steam_points_system();
+
 SET LOCAL ROLE anon;
 SELECT cmp_ok(
   (

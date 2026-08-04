@@ -1157,6 +1157,31 @@ CREATE TRIGGER steam_forecast_markets_set_updated_at
   FOR EACH ROW
   EXECUTE FUNCTION private.set_updated_at();
 
+CREATE OR REPLACE FUNCTION private.sync_steam_forecast_market_lifecycle()
+RETURNS trigger
+LANGUAGE plpgsql
+SET search_path = ''
+AS $$
+BEGIN
+  IF NEW.lifecycle_status = 'released' THEN
+    UPDATE public.steam_forecast_markets
+    SET status = 'locked'
+    WHERE steam_app_id = NEW.steam_app_id AND status = 'open';
+  ELSIF NEW.lifecycle_status = 'upcoming' THEN
+    UPDATE public.steam_forecast_markets
+    SET status = 'open'
+    WHERE steam_app_id = NEW.steam_app_id AND status = 'locked';
+  END IF;
+  RETURN NEW;
+END;
+$$;
+
+CREATE TRIGGER steam_games_sync_forecast_market_lifecycle
+  AFTER UPDATE OF lifecycle_status ON public.steam_games
+  FOR EACH ROW
+  WHEN (OLD.lifecycle_status IS DISTINCT FROM NEW.lifecycle_status)
+  EXECUTE FUNCTION private.sync_steam_forecast_market_lifecycle();
+
 CREATE TRIGGER steam_bets_set_updated_at
   BEFORE UPDATE ON public.steam_bets
   FOR EACH ROW
@@ -1316,6 +1341,14 @@ BEGIN
     );
 
   UPDATE public.steam_forecast_markets AS market
+  SET status = 'open'
+  FROM public.steam_games AS game
+  WHERE game.steam_app_id = market.steam_app_id
+    AND game.lifecycle_status = 'upcoming'
+    AND game.is_wishlisted = true
+    AND market.status = 'locked';
+
+  UPDATE public.steam_forecast_markets AS market
   SET status = 'void', void_reason = 'Game left the TopWishlisted catalog', voided_at = now()
   FROM public.steam_games AS game
   WHERE game.steam_app_id = market.steam_app_id
@@ -1419,9 +1452,12 @@ AS $$
 DECLARE
   locked_count integer;
 BEGIN
-  UPDATE public.steam_forecast_markets
+  UPDATE public.steam_forecast_markets AS market
   SET status = 'locked'
-  WHERE status = 'open' AND lock_at IS NOT NULL AND lock_at <= now();
+  FROM public.steam_games AS game
+  WHERE game.steam_app_id = market.steam_app_id
+    AND game.lifecycle_status = 'released'
+    AND market.status = 'open';
   GET DIAGNOSTICS locked_count = ROW_COUNT;
   RETURN locked_count;
 END;
@@ -1490,9 +1526,9 @@ BEGIN
     END IF;
   END IF;
 
-  IF market.status = 'open' AND market.lock_at IS NOT NULL AND market.lock_at <= now() THEN
-    UPDATE public.steam_forecast_markets SET status = 'locked' WHERE id = market.id;
-    market.status := 'locked';
+  IF market.status = 'locked' THEN
+    UPDATE public.steam_forecast_markets SET status = 'open' WHERE id = market.id;
+    market.status := 'open';
   END IF;
   IF market.status <> 'open' THEN
     RAISE EXCEPTION 'forecast market is %', market.status USING ERRCODE = '22023';
@@ -1574,9 +1610,10 @@ BEGIN
   )
   SELECT market.id, normalized_at::date, normalized_at
   FROM public.steam_forecast_markets AS market
+  JOIN public.steam_games AS game ON game.steam_app_id = market.steam_app_id
   WHERE market.status <> 'void'
+    AND game.lifecycle_status = 'upcoming'
     AND normalized_at >= date_trunc('day', market.scoring_start_at AT TIME ZONE 'UTC') AT TIME ZONE 'UTC'
-    AND (market.lock_at IS NULL OR normalized_at < market.lock_at)
   ON CONFLICT (market_id, snapshot_date) DO NOTHING;
   GET DIAGNOSTICS inserted_count = ROW_COUNT;
 
