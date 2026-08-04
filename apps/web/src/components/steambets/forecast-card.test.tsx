@@ -51,7 +51,7 @@ afterEach(() => {
 });
 
 describe("ForecastCard", () => {
-  it("shows two primary forecasts and expands the remaining three-column panel", () => {
+  it("shows two primary forecasts and expands the remaining two-column panel", () => {
     const { container } = render(<ForecastCard game={game} isAuthenticated />);
 
     expect(screen.getAllByText("200")).toHaveLength(2);
@@ -74,8 +74,8 @@ describe("ForecastCard", () => {
     expect(screen.getByText("Launch price in US, $")).toBeTruthy();
     expect(screen.getByText("Launch discount")).toBeTruthy();
     expect(screen.getAllByText("7M forecasts")).toHaveLength(4);
-    expect(container.querySelectorAll(".sb-game-card__expanded-panel > *")).toHaveLength(3);
-    expect(container.querySelectorAll(".sb-forecast-tile-placeholder")).toHaveLength(1);
+    expect(container.querySelectorAll(".sb-game-card__expanded-panel > *")).toHaveLength(2);
+    expect(container.querySelectorAll(".sb-forecast-tile-placeholder")).toHaveLength(0);
     expect(
       screen.getByRole("button", { name: "Collapse all forecasts for Input Limit Test" }),
     ).toBeTruthy();
@@ -294,7 +294,7 @@ describe("ForecastCard", () => {
     ).toBeTruthy();
   });
 
-  it("shows Locked for both locked and resolved markets", () => {
+  it("ignores a stale locked market while an upcoming game remains forecastable", () => {
     const closed = {
       ...game,
       targets: game.targets.map((target, index) =>
@@ -313,8 +313,34 @@ describe("ForecastCard", () => {
     };
     render(<ForecastCard game={closed} isAuthenticated />);
 
-    expect(screen.getAllByText("Locked")).toHaveLength(2);
+    expect(screen.getAllByText("Locked")).toHaveLength(1);
+    expect(
+      screen.getByRole("button", {
+        name: "Edit First weekend peak CCU forecast for Input Limit Test",
+      }).textContent,
+    ).toBe("500");
     expect(screen.queryByRole("textbox")).toBeNull();
+  });
+
+  it("keeps every stale locked market open until Steam confirms the release", () => {
+    const stale = {
+      ...game,
+      targets: game.targets.map((target) => ({
+        ...target,
+        marketStatus: "locked" as const,
+        userValue: null,
+        userPercentile: null,
+      })),
+    };
+    render(<ForecastCard game={stale} isAuthenticated />);
+
+    expect(screen.queryByText("Locked")).toBeNull();
+    expect(screen.getAllByText("Forecast")).toHaveLength(2);
+    fireEvent.click(
+      screen.getByRole("button", { name: "Expand all forecasts for Input Limit Test" }),
+    );
+    expect(screen.queryByText("Locked")).toBeNull();
+    expect(screen.getAllByText("Forecast")).toHaveLength(4);
   });
 
   it("shows every market as Locked after a game is released", () => {
