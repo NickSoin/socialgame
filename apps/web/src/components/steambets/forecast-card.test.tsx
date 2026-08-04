@@ -81,6 +81,30 @@ describe("ForecastCard", () => {
     ).toBeTruthy();
   });
 
+  it("uses a clean empty chart state and singular forecast count", () => {
+    const sparse = {
+      ...game,
+      targets: game.targets.map((target, index) =>
+        index === 0
+          ? { ...target, averageValue: 332, averageHistory: [], predictionCount: 1 }
+          : index === 1
+            ? { ...target, averageValue: null, averageHistory: [], predictionCount: 0 }
+            : target,
+      ),
+    };
+
+    render(<ForecastCard game={sparse} isAuthenticated />);
+
+    expect(screen.getByText("1 forecast")).toBeTruthy();
+    expect(screen.getByText("0 forecasts")).toBeTruthy();
+    expect(screen.queryByText("No average yet")).toBeNull();
+    expect(
+      screen.getByRole("img", {
+        name: "First month total reviews average forecast trend: no data yet",
+      }),
+    ).toBeTruthy();
+  });
+
   it("cycles hero and two screenshots on every clickable-card hover", () => {
     vi.useFakeTimers();
     const previewGame = {

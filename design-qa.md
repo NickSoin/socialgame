@@ -117,6 +117,60 @@ final result: passed
 
 passed
 
+# Forecast tile composition polish — final visual QA
+
+## Source visual truth
+
+- Expanded card reference: `C:\Users\soinn\AppData\Local\Temp\codex-clipboard-cbdd89dd-ec9a-4500-a652-1a13d327d4e7.png` (1660 × 757 px).
+- Forecast tile reference: `C:\Users\soinn\AppData\Local\Temp\codex-clipboard-a00d5fa6-bc08-431b-9381-be6a0bb57638.png` (1042 × 883 px).
+- User-reported render: `C:\Users\soinn\AppData\Local\Temp\codex-clipboard-f7853935-3783-40fb-801e-b799050b4447.png` (978 × 304 px), with focused tile crop `C:\Users\soinn\AppData\Local\Temp\codex-clipboard-11c7b492-c24e-4e18-967a-9df03d9394e2.png` (292 × 94 px).
+
+## Rendered implementation
+
+- URL: `http://localhost:3000/` in the Codex in-app browser.
+- Collapsed screenshot: `C:\Users\soinn\AppData\Local\Temp\forecast-card-final-collapsed.png` (1280 × 720 px).
+- Expanded screenshot: `C:\Users\soinn\AppData\Local\Temp\forecast-card-final-expanded-clean.png` (1280 × 720 px).
+- Focused card crop: `C:\Users\soinn\AppData\Local\Temp\forecast-card-final-expanded-crop.png` (896 × 246 px).
+- Normalized source/implementation comparison: `C:\Users\soinn\AppData\Local\Temp\forecast-card-final-design-comparison.png` (1812 × 246 px).
+- Viewport: 1280 × 720 CSS px at density 1; the implementation card is 896 × 245.5 CSS px. The reference card was normalized to the same 896 px width before comparison.
+- State: authenticated Popular upcoming feed, Akatori, four markets, collapsed and expanded; forecast editor opened and cancelled.
+
+## Full-view and focused comparison evidence
+
+- The normalized source card and final implementation crop were placed in the same comparison input before the final judgment.
+- Compact tiles are 273.35–273.36 × 76 px. Primary columns begin at x=363.27 and x=646.64; expanded columns two and three begin at those exact same x coordinates. The intentionally inset expanded first column begins at x=79.92.
+- Every market title fits without truncation: each title's `clientWidth` equals its `scrollWidth`, including `First month total reviews`.
+- Title, execution time, average, and Forecast control all resolve to the same 12.2204 px font size. Forecast-count metadata remains smaller.
+- The tag row ends at y=186.17 and the primary tiles start at y=194.17, preserving an 8 px clear gap.
+- Chart and statistics share the same optical center: the chart container and stats center at y=241.17, while the painted chart path is within 1 px at y=242.17.
+- The expanded panel uses 10 px top and 12 px bottom compact padding; the final card is within 7 px of the height-normalized reference.
+
+## Required fidelity surfaces
+
+- Fonts and typography: one container-responsive token controls all main tile text; labels are complete, weights preserve the reference hierarchy, and singular `1 forecast` grammar is correct.
+- Spacing and layout rhythm: compact tile height is 76 px; primary and expanded tracks share exact column lines; the lower row is tightly grouped without colliding with the disclosure control.
+- Colors and tokens: green chart, blue Forecast, yellow saved state, neutral Locked state, muted date/count, pale borders, and white surfaces preserve the selected direction.
+- Image quality and asset fidelity: the live Steam GameHero remains the source asset with its production crop; no synthetic replacement was introduced.
+- Copy and content: all four market labels, dates, averages, counts, Forecast, saved, and Locked states remain available.
+- Interaction and accessibility: Forecast entered editing and cancelled successfully; collapse and a second expand both succeeded; focus styling remains visible for keyboard users.
+
+## Comparison history
+
+1. P1: full market names were clipped at the reported compact width. Replaced the fixed compact size with a card-container-responsive 12–14 px token, tightened the header gap, and measured every title with no overflow.
+2. P2: an empty market showed both `No average yet` and an em dash. Replaced the duplicate copy with one neutral chart baseline plus the single numeric empty marker.
+3. P2: a one-value chart was pinned to the chart edge. Added a padded local domain so a flat consensus line is vertically centered.
+4. P2: compact tiles and the expanded-panel gap were vertically loose relative to the reference. Reduced compact tiles to 76 px and the panel padding to 10/12 px.
+5. P2: desktop gutters and the fixed leaderboard track squeezed the feed around the reference width. Reduced shell gutters at ≤1360 px and moved the leaderboard below the feed at ≤1080 px.
+6. Post-fix browser evidence: meaningful DOM rendered, no framework overlay, no console errors or warnings, exact column alignment, complete labels, editor interaction, and repeatable collapse/expand all passed.
+
+## Automated verification
+
+- Vitest: 178 passed, 2 skipped.
+- TypeScript: passed.
+- oxlint: 0 warnings, 0 errors.
+
+final result: passed
+
 # Forecast card layout correction — visual QA
 
 ## Source visual truth
