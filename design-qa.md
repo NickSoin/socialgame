@@ -116,3 +116,56 @@ final result: passed
 ## Final result
 
 passed
+
+# Forecast card layout correction — visual QA
+
+## Source visual truth
+
+- Expanded game-card reference: `C:\Users\soinn\AppData\Local\Temp\codex-clipboard-cbdd89dd-ec9a-4500-a652-1a13d327d4e7.png` (1660 × 757 px).
+- Forecast-tile state reference: `C:\Users\soinn\AppData\Local\Temp\codex-clipboard-a00d5fa6-bc08-431b-9381-be6a0bb57638.png` (1042 × 883 px).
+- Reported broken render: `C:\Users\soinn\AppData\Local\Temp\codex-clipboard-bd0ce543-47d9-4ba1-a3da-ec7bb551eb7f.png`.
+
+## Rendered implementation
+
+- URL: `http://localhost:3000/`.
+- Desktop collapsed: `C:\Users\soinn\AppData\Local\Temp\nexthit-card-layout-fix-collapsed-final.png` (1659 × 900 px).
+- Desktop expanded: `C:\Users\soinn\AppData\Local\Temp\nexthit-card-layout-fix-expanded-final.png` (1659 × 900 px).
+- Combined comparison: `C:\Users\soinn\AppData\Local\Temp\nexthit-card-layout-reference-comparison.png`.
+- Viewport: 1659 × 900 CSS px; screenshots export at 1659 × 900 px, so comparison density is normalized to 1 exported pixel per CSS pixel.
+- State: authenticated Popular upcoming feed, Akatori, one saved primary forecast, one empty primary forecast, expanded and collapsed.
+
+## Full-view and focused comparison evidence
+
+- Source and implementation were placed together in the combined comparison image before judging the result.
+- The two primary tiles remain beside the GameHero, while the expanded row uses three equal-width tracks.
+- Measured primary columns start at x=536.65 and x=859.99. Expanded columns two and three start at the same x=536.65 and x=859.99; all five visible/placeholder tracks are 311.33–311.34 px wide.
+- The lower first tile starts at x=213.31, preserving the reference's intentional inset from the card edge.
+- The tag row ends at y=186.17 and the primary tiles begin at y=192.17, leaving a 6 px clear gap with no overlap.
+- Tile title, execution time, average value, and Forecast/saved control all resolve to the same 14 px font size at this card width. Forecast-count metadata remains 10 px.
+- The chart line spans y=232.36–258.34 and the average value spans y=232.42–246.42, placing the graph and number on the same horizontal band.
+
+## Required fidelity surfaces
+
+- Fonts and typography: main tile copy now shares one responsive font-size token; weights and muted forecast-count hierarchy remain faithful to the reference.
+- Spacing and layout rhythm: fixed header rows were removed, tile height scales down to 86 px at the compact desktop card width, and the expanded grid shares the primary column lines.
+- Colors and tokens: white surfaces, pale-grey borders, green chart line, blue Forecast state, yellow saved state, and muted timestamps are unchanged from the selected direction.
+- Image quality and asset fidelity: the existing Steam GameHero remains uncropped and no replacement or synthetic imagery was introduced.
+- Copy and content: all four market names, dates, averages, counts, saved value, Forecast, and Locked behavior remain intact.
+- Icons and interaction states: the existing Heroicons disclosure control remains keyboard focusable; expand and collapse were both exercised successfully.
+
+## Comparison history
+
+1. P1: fixed-height game header let forecast tiles collide with the tag row. Replaced the fixed tracks with content-sized rows and verified a 6 px rendered gap.
+2. P1: primary and expanded tiles used independent grids, so their central vertical lines differed. Rebuilt the expanded panel from the primary card variables; measured column starts now match exactly.
+3. P2: title, date, average, and button used four different responsive font sizes. Consolidated them under one responsive token and measured all four at 14 px in the compact desktop state.
+4. P2: graph, average, and control were bottom-aligned at different optical heights. Center-aligned the row and made the chart follow its rendered container height.
+5. P2: compact desktop tiles retained the 120 px large-card height and looked vertically stretched. Reduced the compact state to 86 px while preserving the 134 px large-card and 118 px mobile treatments.
+6. Post-fix browser evidence shows no framework overlay, no console errors or warnings, exact desktop column alignment, and working expand/collapse interaction.
+
+## Responsive note
+
+- The selected visual target is desktop. A 390 px smoke check confirmed the card still renders, but the wider application shell retains its pre-existing desktop minimum width; that shell-level mobile behavior was not changed in this component correction.
+
+## Final result
+
+passed
