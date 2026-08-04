@@ -18,6 +18,10 @@ const compactNumber = new Intl.NumberFormat("en-US", {
   notation: "compact",
 });
 
+function formatForecastCount(value: number) {
+  return `${compactNumber.format(value)} ${value === 1 ? "forecast" : "forecasts"}`;
+}
+
 function formatForecastValue(target: SteamBetTarget, value: number | null) {
   if (value === null || !Number.isFinite(value)) return "—";
   if (target.key === "full_price_us") return `$${decimalNumber.format(value)}`;
@@ -48,10 +52,23 @@ function AverageSparkline({ chartId, target }: { chartId: string; target: SteamB
     if (values.length === 1) values.unshift(values[0]!);
     return values.map((average, index) => ({ index, average }));
   }, [target.averageHistory, target.averageValue]);
+  const hasAverageData = data.length > 0;
+  const chartData = useMemo(
+    () => (hasAverageData ? data : [{ index: 0, average: 0 }, { index: 1, average: 0 }]),
+    [data, hasAverageData],
+  );
   const domain = useMemo<[number, number]>(() => {
-    const maximum = data.reduce((current, point) => Math.max(current, point.average), 0);
-    return [0, maximum > 0 ? maximum * 1.15 : 1];
-  }, [data]);
+    if (!hasAverageData) return [-1, 1];
+    const values = data.map((point) => point.average);
+    const minimum = Math.min(...values);
+    const maximum = Math.max(...values);
+    if (minimum === maximum) {
+      const padding = Math.max(Math.abs(minimum) * 0.1, 1);
+      return [minimum - padding, maximum + padding];
+    }
+    const padding = Math.max((maximum - minimum) * 0.12, 1);
+    return [Math.max(0, minimum - padding), maximum + padding];
+  }, [data, hasAverageData]);
 
   useEffect(() => {
     setMounted(true);
@@ -79,14 +96,14 @@ function AverageSparkline({ chartId, target }: { chartId: string; target: SteamB
 
   return (
     <div
-      aria-label={`${target.label} average forecast trend`}
+      aria-label={`${target.label} average forecast trend${hasAverageData ? "" : ": no data yet"}`}
       className="sb-average-sparkline"
       ref={containerRef}
       role="img"
     >
-      {data.length && mounted ? (
+      {mounted ? (
         <LineChart
-          data={data}
+          data={chartData}
           height={chartSize.height}
           margin={{ top: 4, right: 2, bottom: 4, left: 2 }}
           width={chartSize.width}
@@ -97,17 +114,15 @@ function AverageSparkline({ chartId, target }: { chartId: string; target: SteamB
             dot={false}
             id={chartId}
             isAnimationActive={false}
-            stroke="#73cf9a"
+            stroke={hasAverageData ? "#73cf9a" : "#c7ead5"}
             strokeLinecap="round"
             strokeLinejoin="round"
-            strokeWidth={2.5}
+            strokeWidth={hasAverageData ? 2.5 : 2}
             type="linear"
           />
         </LineChart>
-      ) : data.length ? (
-        <span aria-hidden="true" className="sb-average-sparkline__placeholder" />
       ) : (
-        <span>No average yet</span>
+        <span aria-hidden="true" className="sb-average-sparkline__placeholder" />
       )}
     </div>
   );
@@ -185,7 +200,7 @@ function ForecastTile({
       }}
     >
       <header className="sb-forecast-tile__header">
-        <h3>{target.label}</h3>
+        <h3 title={target.label}>{target.label}</h3>
         <time dateTime={executionDateTime ?? undefined}>
           {formatExecutionTime(target.lockAt, releaseDate)}
         </time>
@@ -195,7 +210,7 @@ function ForecastTile({
         <AverageSparkline chartId={`steam-average-${appId}-${target.key}`} target={target} />
         <div className="sb-forecast-tile__stats" aria-label={`${target.label} market stats`}>
           <strong>{formatForecastValue(target, target.averageValue)}</strong>
-          <span>{compactNumber.format(target.predictionCount)} forecasts</span>
+          <span>{formatForecastCount(target.predictionCount)}</span>
         </div>
         <div className="sb-forecast-tile__action">
           {isLocked ? (
