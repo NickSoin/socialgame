@@ -69,6 +69,7 @@ export function buildSteamFeed({
         };
       })(),
       averageValue: summaryValues.get(`${game.appId}:${target.key}`)?.average_value ?? null,
+      averageHistory: target.averageHistory,
       predictionCount: summaryValues.get(`${game.appId}:${target.key}`)?.prediction_count ?? 0,
       userValue:
         predictionStates.get(`${game.appId}:${target.key}`)?.user_raw_value

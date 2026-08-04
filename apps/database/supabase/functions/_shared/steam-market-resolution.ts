@@ -6,7 +6,8 @@ const USER_AGENT = "NextHitMarket/1.0 (+https://nexthitmarket.com)";
 export type SteamResolutionMetric =
   | "first_weekend_ccu"
   | "first_month_reviews"
-  | "full_price_us";
+  | "full_price_us"
+  | "launch_discount";
 
 export type SteamResolutionValue = {
   value: number;
@@ -101,6 +102,28 @@ export function parseSteamAppDetailsUsdBasePrice(payload: unknown, appId: number
   return initialCents / 100;
 }
 
+export function parseSteamAppDetailsLaunchDiscount(payload: unknown, appId: number): number {
+  const app = (payload as Record<string, {
+    success?: unknown;
+    data?: { is_free?: unknown; price_overview?: { discount_percent?: unknown } };
+  }> | null)?.[String(appId)];
+  if (!app?.success || !app.data) {
+    throw new SteamResolutionSourceError(
+      "steam_discount_not_available",
+      `Steam appdetails has no discount data for app ${appId}`,
+    );
+  }
+  if (app.data.is_free === true) return 0;
+  const discountPercent = Number(app.data.price_overview?.discount_percent);
+  if (!Number.isSafeInteger(discountPercent) || discountPercent < 0 || discountPercent > 100) {
+    throw new SteamResolutionSourceError(
+      "steam_launch_discount_not_found",
+      `Steam appdetails has no valid launch discount for app ${appId}`,
+    );
+  }
+  return discountPercent;
+}
+
 export function parseSteamCurrentPlayerCount(payload: unknown): number {
   const response = (payload as { response?: { result?: unknown; player_count?: unknown } } | null)
     ?.response;
@@ -140,6 +163,7 @@ export async function fetchSteamResolutionValue(
   if (metric === "first_month_reviews") return fetchSteamReviews(appId);
   if (metric === "first_weekend_ccu") return fetchSteamDbPeak(appId);
   if (metric === "full_price_us") return fetchSteamBasePrice(appId);
+  if (metric === "launch_discount") return fetchSteamLaunchDiscount(appId);
   throw new SteamResolutionSourceError("unsupported_metric", `Unsupported metric: ${metric}`);
 }
 
@@ -189,6 +213,24 @@ async function fetchSteamBasePrice(appId: number): Promise<SteamResolutionValue>
       sourceReference: `${steamUrl.toString()}#initial-usd;steamdb-fallback=${encodeURIComponent(reason.slice(0, 160))}`,
     };
   }
+}
+
+async function fetchSteamLaunchDiscount(appId: number): Promise<SteamResolutionValue> {
+  const url = new URL(`https://${STEAM_STORE_HOST}/api/appdetails`);
+  url.searchParams.set("appids", String(appId));
+  url.searchParams.set("cc", "us");
+  url.searchParams.set("l", "english");
+  const response = await fetchSource(url, STEAM_STORE_HOST);
+  const payload = await response.json().catch(() => {
+    throw new SteamResolutionSourceError(
+      "invalid_discount_json",
+      "Steam returned malformed launch-discount JSON",
+    );
+  });
+  return {
+    value: parseSteamAppDetailsLaunchDiscount(payload, appId),
+    sourceReference: `${url.toString()}#launch-discount-percent`,
+  };
 }
 
 async function fetchSource(url: URL, trustedHost: string): Promise<Response> {

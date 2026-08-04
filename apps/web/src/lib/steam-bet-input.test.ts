@@ -11,12 +11,14 @@ describe('Steam bet input limits', () => {
       first_weekend_ccu: 7,
       first_month_reviews: 6,
       full_price_us: 7,
+      launch_discount: 3,
     });
   });
 
   it('truncates integer predictions and removes non-digits', () => {
     expect(sanitizeSteamBetDraft('first_weekend_ccu', '12x3456789')).toBe('1234567');
     expect(sanitizeSteamBetDraft('first_month_reviews', '987654321')).toBe('987654');
+    expect(sanitizeSteamBetDraft('launch_discount', '12x34')).toBe('123');
   });
 
   it('keeps one decimal separator for price and enforces seven characters', () => {
@@ -32,5 +34,7 @@ describe('Steam bet input limits', () => {
     expect(parseSteamBetDraft('full_price_us', '9999.99')).toBe(9_999.99);
     expect(parseSteamBetDraft('full_price_us', '10000.00')).toBeNull();
     expect(parseSteamBetDraft('full_price_us', '12.3.4')).toBeNull();
+    expect(parseSteamBetDraft('launch_discount', '100')).toBe(100);
+    expect(parseSteamBetDraft('launch_discount', '101')).toBeNull();
   });
 });

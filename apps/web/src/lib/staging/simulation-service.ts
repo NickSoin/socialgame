@@ -85,6 +85,7 @@ const METRICS: readonly StagingMetric[] = [
   'first_weekend_ccu',
   'first_month_reviews',
   'full_price_us',
+  'launch_discount',
 ];
 
 const BEHAVIORS: readonly BotBehavior[] = [
@@ -122,7 +123,7 @@ function assertNoError(error: { message: string } | null, context: string) {
 }
 
 function metricResolveAfter(metric: StagingMetric, releaseAt: Date) {
-  if (metric === 'full_price_us') return releaseAt;
+  if (metric === 'full_price_us' || metric === 'launch_discount') return releaseAt;
   if (metric === 'first_month_reviews') return new Date(releaseAt.getTime() + 30 * 86_400_000);
   const day = releaseAt.getUTCDay() || 7;
   const nextMonday = new Date(releaseAt);

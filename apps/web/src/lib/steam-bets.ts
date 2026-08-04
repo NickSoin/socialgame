@@ -2,6 +2,7 @@ export const STEAM_BET_TARGET_KEYS = [
   "first_weekend_ccu",
   "first_month_reviews",
   "full_price_us",
+  "launch_discount",
 ] as const;
 
 export type SteamBetTargetKey = (typeof STEAM_BET_TARGET_KEYS)[number];
@@ -14,6 +15,7 @@ export type SteamBetTarget = {
   min: number;
   max: number;
   predictionCount: number;
+  averageHistory: SteamBetAveragePoint[];
   step: number;
   userValue: number | null;
   userPercentile: number | null;
@@ -83,10 +85,16 @@ export type SteamBetSummary = {
   prediction_count: number;
 };
 
+export type SteamBetAveragePoint = {
+  at: string;
+  averageValue: number;
+};
+
 export const STEAM_BET_INPUT_LIMITS = {
   first_weekend_ccu: 7,
   first_month_reviews: 6,
   full_price_us: 7,
+  launch_discount: 3,
 } as const satisfies Record<SteamBetTargetKey, number>;
 
 export function sanitizeSteamBetDraft(targetKey: SteamBetTargetKey, rawValue: string) {
@@ -130,6 +138,7 @@ export const STEAM_BET_TARGETS: ReadonlyArray<
     SteamBetTarget,
     | "averageValue"
     | "predictionCount"
+    | "averageHistory"
     | "userValue"
     | "userPercentile"
     | "marketStatus"
@@ -158,10 +167,18 @@ export const STEAM_BET_TARGETS: ReadonlyArray<
   },
   {
     key: "full_price_us",
-    label: "Full price in US",
+    label: "Launch price in US, $",
     maxLength: STEAM_BET_INPUT_LIMITS.full_price_us,
     min: 0,
     max: 10_000,
     step: 0.01,
+  },
+  {
+    key: "launch_discount",
+    label: "Launch discount",
+    maxLength: STEAM_BET_INPUT_LIMITS.launch_discount,
+    min: 0,
+    max: 100,
+    step: 1,
   },
 ];

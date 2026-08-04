@@ -17,6 +17,11 @@ describe("toSteamUpcomingGame", () => {
       source_updated_at: "2026-08-01T08:00:00.000Z",
       follower_count: 45_678,
       followers_updated_at: "2026-08-01T09:00:00.000Z",
+      average_forecast_history: {
+        first_weekend_ccu: [
+          { at: "2026-07-31T00:00:00.000Z", average_value: 3700 },
+        ],
+      },
     });
 
     expect(game).toMatchObject({
@@ -31,7 +36,10 @@ describe("toSteamUpcomingGame", () => {
       imageUrl: "https://shared.fastly.steamstatic.com/store_item_assets/steam/apps/388860/header.jpg",
       tags: ["Action", "RPG"],
     });
-    expect(game.targets).toHaveLength(3);
+    expect(game.targets).toHaveLength(4);
+    expect(game.targets[0]?.averageHistory).toEqual([
+      { at: "2026-07-31T00:00:00.000Z", averageValue: 3700 },
+    ]);
   });
 
   it("maps active database media in position order without a per-game source map", () => {

@@ -54,7 +54,7 @@ CREATE TABLE public.steam_bets (
   CONSTRAINT steam_bets_user_game_target_key UNIQUE (user_id, steam_app_id, target_key),
   CONSTRAINT steam_bets_app_id_check CHECK (steam_app_id > 0),
   CONSTRAINT steam_bets_target_key_check CHECK (
-    target_key IN ('first_weekend_ccu', 'first_month_reviews', 'full_price_us')
+    target_key IN ('first_weekend_ccu', 'first_month_reviews', 'full_price_us', 'launch_discount')
   ),
   CONSTRAINT steam_bets_value_check CHECK (value >= 0 AND value <= 100000000),
   CONSTRAINT steam_bets_snapshot_check CHECK (
@@ -99,6 +99,7 @@ CREATE TABLE public.steam_games (
   classification_updated_at timestamptz,
   follower_count bigint,
   followers_updated_at timestamptz,
+  average_forecast_history jsonb NOT NULL DEFAULT '{}'::jsonb,
   CONSTRAINT steam_games_app_id_check CHECK (steam_app_id > 0),
   CONSTRAINT steam_games_name_check CHECK (char_length(name) BETWEEN 1 AND 250),
   CONSTRAINT steam_games_image_url_check CHECK (image_url ~ '^https://'),
@@ -139,6 +140,9 @@ CREATE TABLE public.steam_games (
   ),
   CONSTRAINT steam_games_follower_count_check CHECK (
     follower_count IS NULL OR follower_count >= 0
+  ),
+  CONSTRAINT steam_games_average_forecast_history_check CHECK (
+    jsonb_typeof(average_forecast_history) = 'object'
   ),
   CONSTRAINT steam_games_classification_check CHECK (
     (steam_app_type IS NULL AND classification_updated_at IS NULL)
@@ -926,7 +930,7 @@ CREATE TABLE public.steam_percentile_models (
   is_active boolean NOT NULL DEFAULT false,
   created_at timestamptz NOT NULL DEFAULT now(),
   CONSTRAINT steam_percentile_models_metric_check CHECK (
-    metric_type IN ('first_weekend_ccu', 'first_month_reviews', 'full_price_us')
+    metric_type IN ('first_weekend_ccu', 'first_month_reviews', 'full_price_us', 'launch_discount')
   ),
   CONSTRAINT steam_percentile_models_version_check CHECK (model_version > 0),
   CONSTRAINT steam_percentile_models_values_check CHECK (
@@ -967,7 +971,7 @@ CREATE TABLE public.steam_forecast_markets (
   updated_at timestamptz NOT NULL DEFAULT now(),
   CONSTRAINT steam_forecast_markets_game_metric_key UNIQUE (steam_app_id, metric_type),
   CONSTRAINT steam_forecast_markets_metric_check CHECK (
-    metric_type IN ('first_weekend_ccu', 'first_month_reviews', 'full_price_us')
+    metric_type IN ('first_weekend_ccu', 'first_month_reviews', 'full_price_us', 'launch_discount')
   ),
   CONSTRAINT steam_forecast_markets_status_check CHECK (
     status IN ('open', 'locked', 'resolved', 'void')
@@ -1120,7 +1124,7 @@ CREATE TABLE public.steam_user_leaderboard_stats (
   updated_at timestamptz NOT NULL DEFAULT now(),
   PRIMARY KEY (user_id, metric_type),
   CONSTRAINT steam_user_leaderboard_stats_metric_check CHECK (
-    metric_type IN ('all', 'first_weekend_ccu', 'first_month_reviews', 'full_price_us')
+    metric_type IN ('all', 'first_weekend_ccu', 'first_month_reviews', 'full_price_us', 'launch_discount')
   ),
   CONSTRAINT steam_user_leaderboard_stats_counts_check CHECK (
     scored_days >= 0 AND resolved_markets >= 0 AND rank_position > 0
@@ -1218,6 +1222,8 @@ AS $$
     WHEN p_release_date IS NULL THEN NULL
     WHEN p_metric_type = 'full_price_us'
       THEN p_release_date::timestamp AT TIME ZONE 'UTC'
+    WHEN p_metric_type = 'launch_discount'
+      THEN p_release_date::timestamp AT TIME ZONE 'UTC'
     WHEN p_metric_type = 'first_weekend_ccu'
       THEN (date_trunc('week', p_release_date::timestamp) + interval '7 days') AT TIME ZONE 'UTC'
     WHEN p_metric_type = 'first_month_reviews'
@@ -1253,6 +1259,10 @@ BEGIN
     (
       'full_price_us', 1, 'mvp_fixture_v1: replace only with a versioned audited dataset', 25,
       ARRAY[0,0.99,1.99,2.99,3.99,4.99,5.99,7.99,9.99,11.99,12.99,14.99,17.99,19.99,24.99,29.99,34.99,39.99,44.99,49.99,59.99,69.99,79.99,89.99,99.99]::numeric[], true
+    ),
+    (
+      'launch_discount', 1, 'mvp_fixture_v1: replace only with a versioned audited dataset', 25,
+      ARRAY[0,0,0,0,5,10,10,10,15,15,20,20,20,25,25,30,33,35,40,50,60,70,80,90,100]::numeric[], true
     )
   ON CONFLICT (metric_type, model_version) DO NOTHING;
 
@@ -1281,7 +1291,7 @@ BEGIN
     scoring_start
   FROM public.steam_games AS game
   CROSS JOIN (
-    VALUES ('first_weekend_ccu'), ('first_month_reviews'), ('full_price_us')
+    VALUES ('first_weekend_ccu'), ('first_month_reviews'), ('full_price_us'), ('launch_discount')
   ) AS metric(metric_type)
   JOIN public.steam_percentile_models AS model
     ON model.metric_type = metric.metric_type AND model.is_active = true
@@ -1446,13 +1456,14 @@ BEGIN
   IF current_user_id IS NULL THEN
     RAISE EXCEPTION 'authentication required' USING ERRCODE = '28000';
   END IF;
-  IF p_metric_type NOT IN ('first_weekend_ccu', 'first_month_reviews', 'full_price_us') THEN
+  IF p_metric_type NOT IN ('first_weekend_ccu', 'first_month_reviews', 'full_price_us', 'launch_discount') THEN
     RAISE EXCEPTION 'unsupported forecast metric' USING ERRCODE = '22023';
   END IF;
   IF p_raw_value IS NULL OR p_raw_value < 0
     OR (p_metric_type = 'first_weekend_ccu' AND p_raw_value > 9999999)
     OR (p_metric_type = 'first_month_reviews' AND p_raw_value > 999999)
     OR (p_metric_type = 'full_price_us' AND p_raw_value > 10000)
+    OR (p_metric_type = 'launch_discount' AND p_raw_value > 100)
   THEN
     RAISE EXCEPTION 'forecast value is outside the allowed range' USING ERRCODE = '22003';
   END IF;
@@ -1593,6 +1604,44 @@ BEGIN
     GROUP BY membership.snapshot_id
   ) AS aggregate
   WHERE snapshot.id = aggregate.snapshot_id AND snapshot.snapshot_at = normalized_at;
+
+  WITH daily_average AS (
+    SELECT
+      market.steam_app_id,
+      market.metric_type AS target_key,
+      snapshot.snapshot_at,
+      avg(prediction.raw_value) AS average_value
+    FROM public.steam_market_daily_snapshots AS snapshot
+    JOIN public.steam_forecast_markets AS market ON market.id = snapshot.market_id
+    JOIN public.steam_market_snapshot_predictions AS prediction
+      ON prediction.snapshot_id = snapshot.id
+    WHERE snapshot.snapshot_at >= normalized_at - interval '29 days'
+      AND snapshot.snapshot_at <= normalized_at
+    GROUP BY market.steam_app_id, market.metric_type, snapshot.snapshot_at
+  ), market_history AS (
+    SELECT
+      daily_average.steam_app_id,
+      daily_average.target_key,
+      jsonb_agg(
+        jsonb_build_object(
+          'at', daily_average.snapshot_at,
+          'average_value', daily_average.average_value
+        )
+        ORDER BY daily_average.snapshot_at
+      ) AS points
+    FROM daily_average
+    GROUP BY daily_average.steam_app_id, daily_average.target_key
+  ), game_history AS (
+    SELECT
+      market_history.steam_app_id,
+      jsonb_object_agg(market_history.target_key, market_history.points) AS history
+    FROM market_history
+    GROUP BY market_history.steam_app_id
+  )
+  UPDATE public.steam_games AS game
+  SET average_forecast_history = game_history.history
+  FROM game_history
+  WHERE game.steam_app_id = game_history.steam_app_id;
 
   RETURN inserted_count;
 END;
@@ -1957,7 +2006,7 @@ SECURITY DEFINER
 SET search_path = ''
 AS $$
 BEGIN
-  IF p_metric_type NOT IN ('all', 'first_weekend_ccu', 'first_month_reviews', 'full_price_us') THEN
+  IF p_metric_type NOT IN ('all', 'first_weekend_ccu', 'first_month_reviews', 'full_price_us', 'launch_discount') THEN
     RAISE EXCEPTION 'unsupported leaderboard metric' USING ERRCODE = '22023';
   END IF;
   IF p_limit < 1 OR p_limit > 100 OR p_offset < 0 THEN

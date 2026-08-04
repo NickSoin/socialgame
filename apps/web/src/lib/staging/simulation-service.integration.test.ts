@@ -75,7 +75,7 @@ describe.skipIf(!runIntegration)('staging simulation service integration', () =>
     const manual = await executeSimulationCommand({
       action: 'create_game', simulationId,
       name: 'Manual Integration Game',
-      scenarioValues: { first_weekend_ccu: 12_345, first_month_reviews: 2_345, full_price_us: 19.99 },
+      scenarioValues: { first_weekend_ccu: 12_345, first_month_reviews: 2_345, full_price_us: 19.99, launch_discount: 10 },
       createMarkets: true,
     }, principal);
     if (!manual || !('game' in manual)) throw new Error('Manual game was not created.');
@@ -132,7 +132,7 @@ describe.skipIf(!runIntegration)('staging simulation service integration', () =>
     if (!blankResult || !('id' in blankResult)) throw new Error('Blank simulation was not created.');
     const simulationId = String(blankResult.id);
     expect((await getGameMasterData(simulationId)).selected?.games).toHaveLength(0);
-    await executeSimulationCommand({ action: 'create_game', simulationId, name: 'Blank Test Game', releaseAt: '2026-08-08T00:00:00.000Z', scenarioValues: { first_weekend_ccu: 5_200, first_month_reviews: 800, full_price_us: 24.99 }, createMarkets: true }, principal);
+    await executeSimulationCommand({ action: 'create_game', simulationId, name: 'Blank Test Game', releaseAt: '2026-08-08T00:00:00.000Z', scenarioValues: { first_weekend_ccu: 5_200, first_month_reviews: 800, full_price_us: 24.99, launch_discount: 15 }, createMarkets: true }, principal);
     await executeSimulationCommand({ action: 'generate_players', simulationId, count: 4, prefix: 'QA', behavior: 'expert', skillMin: 0.8, skillMax: 0.9, seed: 123 }, principal);
     const ready = await getGameMasterData(simulationId);
     const market = ready.selected?.markets[0];
@@ -151,7 +151,7 @@ describe.skipIf(!runIntegration)('staging simulation service integration', () =>
     const checkpointed = await getGameMasterData(simulationId);
     const checkpoint = checkpointed.selected?.checkpoints[0];
     if (!checkpoint) throw new Error('Checkpoint was not created.');
-    await executeSimulationCommand({ action: 'create_game', simulationId, name: 'Disposable game', scenarioValues: { first_weekend_ccu: 1, first_month_reviews: 1, full_price_us: 1 }, createMarkets: false }, principal);
+    await executeSimulationCommand({ action: 'create_game', simulationId, name: 'Disposable game', scenarioValues: { first_weekend_ccu: 1, first_month_reviews: 1, full_price_us: 1, launch_discount: 1 }, createMarkets: false }, principal);
     await executeSimulationCommand({ action: 'reset', simulationId, checkpointId: checkpoint.id }, principal);
     const restored = await getGameMasterData(simulationId);
     expect(restored.selected?.games.some((game) => game.name === 'Disposable game')).toBe(false);

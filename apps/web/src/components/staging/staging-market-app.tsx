@@ -46,6 +46,7 @@ const DEFAULT_RESOLUTION_VALUES: Record<SteamBetTargetKey, string> = {
   first_weekend_ccu: '2000',
   first_month_reviews: '1200',
   full_price_us: '12',
+  launch_discount: '10',
 };
 
 const TABS: Array<{ id: FeedMode; label: string; icon: typeof TrendingUp }> = [
@@ -74,6 +75,7 @@ function mergeGameState(
       return {
         ...target,
         averageValue: market?.averageValue ?? null,
+        averageHistory: [],
         predictionCount: market?.predictionCount ?? 0,
         userValue: market?.forecasts.find((forecast) => forecast.playerId === activePlayerId)?.value ?? null,
         userPercentile: null,
@@ -204,7 +206,9 @@ function ManipulationPanel({
   const [manualValue, setManualValue] = useState('');
   const [batchCount, setBatchCount] = useState('25');
   const [minimum, setMinimum] = useState('0');
-  const [maximum, setMaximum] = useState(target.key === 'full_price_us' ? '69.99' : '10000');
+  const [maximum, setMaximum] = useState(
+    target.key === 'full_price_us' ? '69.99' : target.key === 'launch_discount' ? '100' : '10000',
+  );
 
   useEffect(() => {
     if (activePlayerId) setPlayerId(activePlayerId);
@@ -418,6 +422,7 @@ function StagingGameCard({
     first_weekend_ccu: parseSteamBetDraft('first_weekend_ccu', resolutionValues.first_weekend_ccu),
     first_month_reviews: parseSteamBetDraft('first_month_reviews', resolutionValues.first_month_reviews),
     full_price_us: parseSteamBetDraft('full_price_us', resolutionValues.full_price_us),
+    launch_discount: parseSteamBetDraft('launch_discount', resolutionValues.launch_discount),
   };
   const canResolve = Object.values(parsedResolutionValues).every((value) => value !== null);
 

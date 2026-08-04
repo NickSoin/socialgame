@@ -6,6 +6,7 @@ export const STEAM_LEADERBOARD_METRICS = [
   'first_weekend_ccu',
   'first_month_reviews',
   'full_price_us',
+  'launch_discount',
 ] as const;
 
 export type SteamLeaderboardMetric = (typeof STEAM_LEADERBOARD_METRICS)[number];

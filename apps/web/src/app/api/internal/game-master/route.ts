@@ -9,12 +9,13 @@ import {
 const simulationId = z.string().uuid();
 const playerId = z.string().uuid();
 const steamAppId = z.number().int().positive();
-const metricType = z.enum(['first_weekend_ccu', 'first_month_reviews', 'full_price_us']);
+const metricType = z.enum(['first_weekend_ccu', 'first_month_reviews', 'full_price_us', 'launch_discount']);
 const forecastValue = z.number().finite().min(0).max(100_000_000);
 const actualValues = z.object({
   first_weekend_ccu: forecastValue.int(),
   first_month_reviews: forecastValue.int(),
   full_price_us: forecastValue.max(10_000),
+  launch_discount: forecastValue.int().max(100),
 });
 
 const commandSchema = z.discriminatedUnion('action', [

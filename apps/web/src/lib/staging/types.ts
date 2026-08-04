@@ -2,6 +2,7 @@ export const STAGING_METRICS = [
   'first_weekend_ccu',
   'first_month_reviews',
   'full_price_us',
+  'launch_discount',
 ] as const;
 
 export type StagingMetric = (typeof STAGING_METRICS)[number];

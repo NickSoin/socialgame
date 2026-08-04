@@ -13,6 +13,7 @@ describe('staging canonical scoring', () => {
     expect(percentileValue('first_weekend_ccu', 6_500)).toBe(50);
     expect(percentileValue('first_month_reviews', 650)).toBe(50);
     expect(percentileValue('full_price_us', 24.99)).toBe(58);
+    expect(percentileValue('launch_discount', 20)).toBe(46);
   });
 
   it('rejects negative or non-finite forecasts', () => {

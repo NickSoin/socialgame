@@ -83,3 +83,36 @@
 - The sorter is immutable and has focused tests for cross-day order, same-day rank order, missing ranks, and TBA dates.
 
 final result: passed
+
+# Forecast card redesign — visual QA
+
+## Source visuals
+
+- Forecast tile states: `C:\Users\soinn\AppData\Local\Temp\codex-clipboard-2a01b479-8aef-4023-b893-62db05fac12c.png`
+- Collapsed and expanded game cards: `C:\Users\soinn\AppData\Local\Temp\codex-clipboard-e1cc08b0-4539-4f25-862b-cf253018f791.png`
+
+## Rendered evidence
+
+- Desktop collapsed: `C:\Users\soinn\AppData\Local\Temp\nexthit-card-desktop-collapsed-final.png`
+- Desktop expanded: `C:\Users\soinn\AppData\Local\Temp\nexthit-card-desktop-expanded-final.png`
+- Forecast editor: `C:\Users\soinn\AppData\Local\Temp\nexthit-card-forecast-editor-final.png`
+- Locked state: `C:\Users\soinn\AppData\Local\Temp\nexthit-card-locked-final.png`
+- Reference comparison: `C:\Users\soinn\AppData\Local\Temp\nexthit-card-reference-comparison.png`
+
+## Target and state
+
+- Viewport: 1659 × 900 CSS pixels at device pixel ratio 1.5.
+- Data: Akatori with realistic wishlist rank, follower count, four forecast markets, averages, history, and a saved forecast.
+- States exercised: saved, empty, editing, collapsed, expanded, and locked.
+
+## QA history
+
+1. The first render exposed stale development CSS and overflowing tile controls. A clean build plus card-width container rules restored the intended two-column tile layout without overflow.
+2. Recharts initially produced non-deterministic server/client clip identifiers. The chart now mounts after hydration and uses a stable line identifier; a fresh browser tab reports no errors or warnings.
+3. The expand control's painted hit area was too narrow at the card edge. Its hit target was moved inside the card and verified through actual browser interaction.
+4. The expanded panel was verified as a three-column grid. The two current secondary markets occupy the first two columns, leaving the third ready for future markets; the first tile is inset from the card edge.
+5. Source and rendered screenshots were combined into one comparison image. Typography, border weight, radii, graph treatment, state colours, market ordering, and expansion hierarchy match the supplied direction within the existing site shell.
+
+## Final result
+
+passed
